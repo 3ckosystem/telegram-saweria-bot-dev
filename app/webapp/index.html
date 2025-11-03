@@ -82,6 +82,25 @@
     }
     .modal .close{background:#2b2b2b;color:#fff}
     .modal .add{background:var(--accent);color:#fff}
+
+    /* —— Gate sheet style agar konsisten dengan tampilan bot —— */
+    .gate{
+      max-width:520px;margin:24px auto;padding:16px 12px;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      color:#fff;text-align:center
+    }
+    .gate h3{margin:0 0 8px;font-size:22px}
+    .gate p{opacity:.9;margin:0 0 12px}
+    .gate .btn{
+      display:block;width:100%;padding:12px 14px;margin:8px 0;
+      border-radius:12px;border:1px solid #ffffff1a;background:#1b1b1b;
+      color:#fff;text-decoration:none;font-weight:800;text-align:center
+    }
+    .gate .btn:hover{filter:brightness(1.02)}
+    .gate .recheck{
+      background:linear-gradient(180deg,rgba(255,35,69,.95),rgba(255,35,69,.85));
+      border-color:#ff234522
+    }
   </style>
 
   <!-- Styles utama (komponen kartu, tombol, dsb) -->
@@ -136,17 +155,16 @@
       // Jika tidak ada UID → beri info ramah, jangan crash
       if (!UID) {
         const wrap = document.createElement('div');
-        wrap.style.cssText = 'max-width:560px;margin:18px auto;padding:16px 14px;background:#1a1a1a;border:1px solid #ffffff22;border-radius:12px;color:#fff;font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;';
+        wrap.className = 'gate';
         wrap.innerHTML = `
-          <h3 style="margin:0 0 8px">Tidak ada UID Telegram</h3>
-          <p style="opacity:.85;margin:0 0 10px">Silakan buka halaman ini dari bot (tombol kiri-bawah) atau gunakan URL dengan parameter <code>?uid=123</code>.</p>
+          <h3>Tidak ada UID Telegram</h3>
+          <p>Silakan buka halaman ini dari bot (tombol kiri-bawah) atau gunakan URL dengan parameter <code>?uid=123</code>.</p>
         `;
         document.body.prepend(wrap);
         return; // stop di sini (jangan load app.js)
       }
 
       // ——— Gate check sebelum load app.js ———
-      // (Jika backend kamu butuh header tertentu, tambahkan di fetch ini)
       fetch(`/api/gate/status?uid=${encodeURIComponent(UID)}`, { cache: 'no-store' })
         .then(async (res) => {
           if (res.status === 403) {
@@ -168,7 +186,7 @@
         })
         .catch((err) => {
           const wrap = document.createElement('div');
-          wrap.style.cssText = 'max-width:560px;margin:18px auto;padding:16px 14px;background:#1a1a1a;border:1px solid #ffffff22;border-radius:12px;color:#fff;font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;';
+          wrap.className = 'gate';
           wrap.textContent = 'Gagal memeriksa status. Coba ulang beberapa saat lagi.';
           document.body.prepend(wrap);
         });
@@ -183,23 +201,56 @@
         document.body.appendChild(s);
       }
 
+      // ===== Gate screen mirip tampilan bot =====
       function showGateBlock(info) {
-        const g = (info && info.group_invites ? info.group_invites : []).filter(Boolean);
-        const c = (info && info.channel_invites ? info.channel_invites : []).filter(Boolean);
-        const html = `
-          <div style="max-width:520px;margin:24px auto;padding:16px 12px;font-family:sans-serif;text-align:center;color:#fff">
-            <h3 style="margin:0 0 8px">Wajib Join/Subscribe Dulu</h3>
-            <p style="opacity:.85;margin:0 0 10px">Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.</p>
-            <div style="margin-top:12px;display:grid;gap:10px">
-              ${g.map(u => `<a style="display:block;padding:12px;border-radius:10px;background:#1b1b1b;border:1px solid #ffffff1a;color:#fff;text-decoration:none" href="${u}" target="_blank" rel="noopener">Join Group</a>`).join("")}
-              ${c.map(u => `<a style="display:block;padding:12px;border-radius:10px;background:#1b1b1b;border:1px solid #ffffff1a;color:#fff;text-decoration:none" href="${u}" target="_blank" rel="noopener">Subscribe Channel</a>`).join("")}
-            </div>
-            <p style="opacity:.8;margin-top:14px">Setelah join, kembali ke bot dan tekan <b>Re-check</b>.</p>
+        // Backend boleh kirim: group_invites[], channel_invites[], group_titles[], channel_titles[], ok_count, total_required
+        const gInv = (info && info.group_invites ? info.group_invites : []);
+        const cInv = (info && info.channel_invites ? info.channel_invites : []);
+        const gTitle = (info && info.group_titles ? info.group_titles : []);
+        const cTitle = (info && info.channel_titles ? info.channel_titles : []);
+
+        const buttons = [];
+
+        // Grup
+        for (let i = 0; i < gInv.length; i++) {
+          const url = gInv[i];
+          if (!url) continue;
+          const title = (gTitle[i] && String(gTitle[i]).trim()) || 'Group';
+          // Label mengikuti gaya bot: "Join <Nama>"
+          buttons.push(`<a class="btn" href="${url}" target="_blank" rel="noopener">Join ${escapeHtml(title)}</a>`);
+        }
+        // Channel
+        for (let i = 0; i < cInv.length; i++) {
+          const url = cInv[i];
+          if (!url) continue;
+          const title = (cTitle[i] && String(cTitle[i]).trim()) || 'Channel';
+          // Label mengikuti gaya bot: "Subscribe <Nama>"
+          buttons.push(`<a class="btn" href="${url}" target="_blank" rel="noopener">Subscribe ${escapeHtml(title)}</a>`);
+        }
+
+        const wrap = document.createElement('div');
+        wrap.className = 'gate';
+        wrap.innerHTML = `
+          <h3>Wajib Join/Subscribe Dulu</h3>
+          <p>Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.</p>
+          <div>${buttons.join('')}</div>
+          <div style="margin-top:8px">
+            <button id="recheckInMiniApp" class="btn recheck">✅ Saya sudah join (Re-check)</button>
           </div>
+          <p style="opacity:.85;margin-top:10px">Setelah join, tombol di atas akan menutup Mini App dan kembali ke chat bot untuk verifikasi otomatis.</p>
         `;
-        const holder = document.createElement('div');
-        holder.innerHTML = html;
-        document.body.prepend(holder.firstElementChild);
+        document.body.prepend(wrap);
+
+        // Tombol Re-check: tutup Mini App → user kembali ke chat, lalu tekan "Re-check" (inline) di bot
+        const btn = document.getElementById('recheckInMiniApp');
+        btn?.addEventListener('click', () => {
+          try { Telegram.WebApp.HapticFeedback?.impactOccurred?.('light'); } catch {}
+          try { Telegram.WebApp.close(); } catch { window.history.back(); }
+        });
+      }
+
+      function escapeHtml(s){
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       }
     })();
   </script>
