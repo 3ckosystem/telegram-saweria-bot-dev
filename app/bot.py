@@ -1,4 +1,6 @@
 # --- app/bot.py (membership gate + filtered buttons + title resolver) ---
+# Versi ini MENGHILANGKAN Reply Keyboard "Katalog Grup VIP" dan
+# memakai Menu Button WebApp (tombol kiri-bawah Telegram) per-chat.
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -7,8 +9,9 @@ import os, json, time, asyncio, re
 from typing import Any, Optional, List, Tuple, Dict
 
 from telegram import (
-    Update, WebAppInfo, KeyboardButton, ReplyKeyboardMarkup,
-    InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
+    Update, WebAppInfo,
+    InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove,
+    MenuButtonWebApp
 )
 from telegram.ext import (
     Application, CommandHandler, ContextTypes, CallbackQueryHandler
@@ -60,23 +63,43 @@ async def gate_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔎 Gate ENV Debug:\n" + "\n".join(out))
 
 async def reset_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/reset_keyboard -> paksa hapus tombol reply keyboard."""
+    """/reset_keyboard -> paksa hapus tombol reply keyboard (jika ada sisa)."""
     await update.message.reply_text("Keyboard dihapus.", reply_markup=ReplyKeyboardRemove())
 
-# ===================== UTIL: WEBAPP BUTTON =====================
+# ===================== UTIL: WEBAPP BUTTON (MENU KIRI-BAWAH) =====================
 
 def _webapp_url_for(uid: int) -> str:
+    """Bangun URL WebApp dengan uid & cache-buster timestamp."""
     if WEBAPP_URL:
         sep = "&" if ("?" in WEBAPP_URL) else "?"
         return f"{WEBAPP_URL}{sep}uid={uid}&t={int(time.time())}"
     return f"{BASE_URL}/webapp/index.html?v=neon4&uid={uid}"
 
 async def _send_webapp_button(chat_id: int, uid: int, context: ContextTypes.DEFAULT_TYPE):
-    kb = [[KeyboardButton(text="🛍️ Katalog Grup VIP", web_app=WebAppInfo(url=_webapp_url_for(uid)))]]
+    """
+    Set tombol kiri-bawah (Menu Button WebApp) untuk chat ini.
+    Hapus reply keyboard jika sebelumnya pernah tampil.
+    """
+    url = _webapp_url_for(uid)
+
+    # Set tombol menu khusus untuk chat ini (boleh mengandung uid per-user).
+    try:
+        await context.bot.set_chat_menu_button(
+            chat_id=chat_id,
+            menu_button=MenuButtonWebApp(
+                text="🛍️ Katalog Grup VIP",
+                web_app=WebAppInfo(url=url)
+            )
+        )
+    except Exception as e:
+        # Tidak fatal jika gagal (mis. izin tertentu); tetap lanjut kirim pesan.
+        print("[menu_button] set_chat_menu_button failed:", e)
+
+    # Kirim pesan tanpa Reply Keyboard; sekaligus menghapus keyboard lama jika ada.
     await context.bot.send_message(
         chat_id=chat_id,
-        text="Silahkan lanjutkan pemesanan dan pembayaran dengan klik tombol 🛍️ Katalog Grup VIP di bawah.",
-        reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True)
+        text="Silahkan lanjutkan pemesanan & pembayaran dengan klik tombol 🛍️ di kiri bawah.",
+        reply_markup=ReplyKeyboardRemove()
     )
 
 # ===================== GATE: RUNTIME ENV LOADER =====================
@@ -229,7 +252,7 @@ def _gate_keyboard_filtered(
     group_titles: List[str],
     channel_titles: List[str],
 ) -> InlineKeyboardMarkup:
-    """Render tombol hanya untuk chat yang belum join/subscribe."""
+    """Render tombol hanya untuk chat yang belum join/subscribe (INLINE, bukan reply keyboard)."""
     rows: List[List[InlineKeyboardButton]] = []
 
     for i, st in enumerate(mem_groups):
@@ -272,8 +295,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     cfg = _load_gate_env()
 
-    # Jika tak ada syarat → langsung buka Mini App
+    # Jika tak ada syarat → langsung buka Mini App via Menu Button
     if not cfg["group_ids"] and not cfg["channel_ids"]:
+        # bersihkan keyboard lama jika ada
+        await context.bot.send_message(chat_id=chat_id, text="EnSEXlopedia Mini Apps BOT", reply_markup=ReplyKeyboardRemove())
         await _send_webapp_button(chat_id, uid, context)
         return
 
@@ -281,10 +306,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     passed = _is_pass(ok_count, total_required, cfg)
 
     if passed and not any_cannot_check:
+        # pastikan keyboard lama hilang
+        await context.bot.send_message(chat_id=chat_id, text="EnSEXlopedia Mini Apps BOT", reply_markup=ReplyKeyboardRemove())
         await _send_webapp_button(chat_id, uid, context)
         return
 
-    # Belum lolos gate → sembunyikan keyboard "Buka Katalog" lama
+    # Belum lolos gate → sembunyikan keyboard lama (kalau masih ada)
     await context.bot.send_message(chat_id=chat_id, text="EnSEXlopedia Mini Apps BOT", reply_markup=ReplyKeyboardRemove())
 
     # Kirim instruksi + tombol Join/Subscribe + Re-check (inline) — hanya yang belum join
