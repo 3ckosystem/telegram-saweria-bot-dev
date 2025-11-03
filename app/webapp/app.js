@@ -5,8 +5,10 @@ tg?.expand();
 let PRICE_PER_GROUP = 25000;
 let LOADED_GROUPS = [];
 
-// ====== Truncate aman emoji ======
-const MAX_DESC_CHARS = 120;
+// ====== Config truncate ======
+const MAX_DESC_CHARS = 120; // ubah sesuai kebutuhan
+
+// Truncate aman emoji + potong di batas kata
 function truncateText(text, max = MAX_DESC_CHARS) {
   if (!text) return "";
   try {
@@ -18,6 +20,7 @@ function truncateText(text, max = MAX_DESC_CHARS) {
     const safe = lastSpace > 40 ? partial.slice(0, lastSpace) : partial;
     return safe.replace(/[.,;:!\s]*$/,'') + '…';
   } catch {
+    // Fallback sederhana
     if (text.length <= max) return text;
     let t = text.slice(0, max);
     const lastSpace = t.lastIndexOf(' ');
@@ -70,22 +73,27 @@ function renderNeonList(groups) {
 
     const p = document.createElement('div');
     p.className = 'desc';
+    // truncate untuk tampilan kartu
     p.textContent = truncateText(desc || 'Akses eksklusif grup pilihan.');
 
     const btn = document.createElement('button');
     btn.type = 'button';
+    // default: berwarna & rata kanan
     btn.className = 'btn-solid';
     btn.style.marginLeft = 'auto';
     btn.textContent = 'Pilih Grup';
 
+    // === BEHAVIOR ===
+    // 1) Klik tombol: toggle select (HANYA tombol)
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       toggleSelect(card);
     });
 
+    // 2) Klik area kartu selain tombol: buka modal dengan deskripsi FULL
     card.addEventListener('click', (e) => {
-      if (btn.contains(e.target)) return;
+      if (btn.contains(e.target)) return; // safety
       openDetailModal({ id, name, desc: longDesc || desc, image: img });
     });
 
@@ -93,6 +101,7 @@ function renderNeonList(groups) {
     card.append(check, thumb, meta);
     root.appendChild(card);
 
+    // set label + warna awal sesuai state
     updateButtonState(card, btn);
   });
 
@@ -109,30 +118,24 @@ function toggleSelect(card){
 
 function updateButtonState(card, btn){
   const selected = card.classList.contains('selected');
+  // ganti teks
   btn.textContent = selected ? 'Batal' : 'Pilih Grup';
+  // ganti gaya: berwarna saat BELUM dipilih, ghost saat SUDAH dipilih
   btn.classList.toggle('btn-solid', !selected);
   btn.classList.toggle('btn-ghost', selected);
+  // tetap rata kanan
   if (!btn.style.marginLeft) btn.style.marginLeft = 'auto';
 }
 
-/* ===================== DETAIL MODAL + CAROUSEL ===================== */
-
-async function openDetailModal(item){
+function openDetailModal(item){
   const m = document.getElementById('detail');
   const card = document.querySelector(`.card[data-id="${CSS.escape(item.id)}"]`);
   const selected = card?.classList.contains('selected');
 
-  const images = await fetchImagesForItem(item);
-
   m.innerHTML = `
     <div class="sheet" id="sheet">
-      <div class="hero">
-        <div class="carousel" id="carousel" data-idx="0">
-          <button class="nav prev" aria-label="Sebelumnya">‹</button>
-          <img id="cImg" class="slide" src="" alt="${escapeHtml(item.name)}">
-          <button class="nav next" aria-label="Berikutnya">›</button>
-          <div class="dots" id="cDots"></div>
-        </div>
+      <div class="hero" id="hero">
+        ${item.image ? `<img id="detail-img" src="${item.image}" alt="${escapeHtml(item.name)}">` : ''}
       </div>
       <div class="title" id="ttl">${escapeHtml(item.name)}</div>
       <div class="desc" id="dsc">${escapeHtml(item.desc || '')}</div>
@@ -144,144 +147,60 @@ async function openDetailModal(item){
   `;
   m.hidden = false;
 
-  // sizing stabil: heroImgHeight = clamp(220px, 62vh, (98vh - nonImg))
   const sheet = document.getElementById('sheet');
-  const ttl = document.getElementById('ttl');
-  const dsc = document.getElementById('dsc');
-  const btns = document.getElementById('btns');
-  const hero = sheet.querySelector('.hero');
-  function fitHeroHeight() {
+  const hero  = document.getElementById('hero');
+  const img   = document.getElementById('detail-img');
+  const ttl   = document.getElementById('ttl');
+  const dsc   = document.getElementById('dsc');
+  const btns  = document.getElementById('btns');
+
+  // Hitung tinggi hero agar: hero + teks + tombol ≈ 98vh (hampir fullscreen)
+  const fitHero = () => {
     const vh = window.innerHeight;
+    // tinggi non-gambar (judul + deskripsi + tombol + padding sheet + gap)
     const styles = getComputedStyle(sheet);
     const pad = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
-    const nonImg = ttl.offsetHeight + dsc.offsetHeight + btns.offsetHeight + pad + 24; // gap kecil
-    const avail = Math.max(220, Math.min(vh * 0.98 - nonImg, vh * 0.62));
-    hero.style.maxHeight = `${Math.floor(avail)}px`;
+    const gaps = 12 * 2; // gap kira2
+    const nonImg = ttl.offsetHeight + dsc.offsetHeight + btns.offsetHeight + pad + gaps;
+
+    // sisa aman untuk area gambar
+    const target = Math.max(200, Math.min(vh * 0.98 - nonImg, vh * 0.92));
+    hero.style.maxHeight = `${Math.floor(target)}px`;
+
+    // Jika masih banyak “pillarbox” (portrait sempit), boleh pakai cover agar lebar penuh
+    if (img && img.naturalWidth && img.naturalHeight) {
+      const portrait = img.naturalHeight > img.naturalWidth * 1.15;
+      img.style.objectFit = portrait ? 'cover' : 'contain';
+      // Saat cover, pastikan tinggi persis memenuhi hero
+      if (portrait) {
+        img.style.height = '100%';
+        hero.style.height = `${Math.floor(target)}px`;
+      } else {
+        img.style.height = 'auto';
+        hero.style.height = 'auto';
+      }
+    }
+  };
+
+  if (img) {
+    if (img.complete) fitHero();
+    else img.addEventListener('load', fitHero, { once:true });
+    window.addEventListener('resize', fitHero, { passive:true });
   }
 
-  // Init carousel
-  const cleanup = initCarousel(images);
-
-  // listeners
-  m.querySelector('.close')?.addEventListener('click', () => { cleanup(); closeDetailModal(); });
-  m.querySelector('.add')?.addEventListener('click', () => { if (card) toggleSelect(card); cleanup(); closeDetailModal(); });
-  m.addEventListener('click', (e) => { if (e.target === m) { cleanup(); closeDetailModal(); } }, { once:true });
-
-  // first layout
-  fitHeroHeight();
-  window.addEventListener('resize', fitHeroHeight, { passive:true });
-
-  // remove on close
-  const detach = () => window.removeEventListener('resize', fitHeroHeight);
-  m._detachFit = detach;
+  m.querySelector('.close')?.addEventListener('click', () => closeDetailModal());
+  m.querySelector('.add')?.addEventListener('click', () => { if (card) toggleSelect(card); closeDetailModal(); });
+  m.addEventListener('click', (e) => { if (e.target === m) closeDetailModal(); }, { once:true });
 }
+
+
+
 
 function closeDetailModal(){
   const m = document.getElementById('detail');
-  try { m._detachFit?.(); } catch {}
   m.hidden = true;
   m.innerHTML = '';
 }
-
-async function fetchImagesForItem(item){
-  try {
-    const r = await fetch(`/api/images?gid=${encodeURIComponent(item.id)}`, { cache: 'no-store' });
-    if (r.ok) {
-      const data = await r.json();
-      const list = Array.isArray(data?.images) ? data.images : [];
-      if (list.length) return list;
-    }
-  } catch {}
-  return item.image ? [item.image] : [];
-}
-
-function initCarousel(images){
-  const car  = document.getElementById('carousel');
-  const img  = document.getElementById('cImg');
-  const dots = document.getElementById('cDots');
-
-  let idx = 0;
-  let timer = null;
-
-  function renderDots(){
-    dots.innerHTML = images.map((_, i) =>
-      `<div class="dot${i===idx?' active':''}" data-i="${i}"></div>`
-    ).join('');
-    dots.querySelectorAll('.dot').forEach(el => {
-      el.addEventListener('click', () => setSlide(parseInt(el.dataset.i,10)));
-    });
-  }
-
-  function fitImg(){
-    // pastikan tidak zoom
-    img.style.objectFit = 'contain';
-    img.style.width = '100%';
-    img.style.height = 'auto';
-  }
-
-  function setSlide(i){
-    if (!images.length) { img.removeAttribute('src'); return; }
-    idx = (i + images.length) % images.length;
-    car.dataset.idx = String(idx);
-    const src = images[idx];
-    if (img.src !== src) {
-      img.onload = () => requestAnimationFrame(fitImg);
-      img.src = src;
-    } else {
-      fitImg();
-    }
-    renderDots();
-    restartAuto();
-  }
-
-  const next = () => setSlide(idx + 1);
-  const prev = () => setSlide(idx - 1);
-
-  // tombol
-  const onNext = (e)=>{ e.stopPropagation(); next(); };
-  const onPrev = (e)=>{ e.stopPropagation(); prev(); };
-  car.querySelector('.next')?.addEventListener('click', onNext);
-  car.querySelector('.prev')?.addEventListener('click', onPrev);
-
-  // swipe
-  let startX = 0, deltaX = 0;
-  const onTs = (e)=>{ startX = e.touches[0].clientX; deltaX = 0; stopAuto(); };
-  const onTm = (e)=>{ deltaX = e.touches[0].clientX - startX; };
-  const onTe = ()=>{ if (Math.abs(deltaX) > 40) (deltaX < 0 ? next() : prev()); startAuto(); };
-  car.addEventListener('touchstart', onTs, { passive:true });
-  car.addEventListener('touchmove',  onTm, { passive:true });
-  car.addEventListener('touchend',   onTe);
-
-  // keyboard (opsional)
-  const onKey = (e)=>{
-    if (document.getElementById('detail')?.hidden) return;
-    if (e.key === 'ArrowRight') next();
-    if (e.key === 'ArrowLeft')  prev();
-  };
-  document.addEventListener('keydown', onKey);
-
-  // auto-rotate
-  function startAuto(){ stopAuto(); if (images.length > 1) timer = setInterval(next, 4500); }
-  function stopAuto(){ if (timer) { clearInterval(timer); timer = null; } }
-  function restartAuto(){ stopAuto(); startAuto(); }
-
-  // mulai
-  setSlide(0);
-  startAuto();
-
-  // cleanup saat modal ditutup
-  return function cleanup(){
-    stopAuto();
-    document.removeEventListener('keydown', onKey);
-    car.querySelector('.next')?.removeEventListener('click', onNext);
-    car.querySelector('.prev')?.removeEventListener('click', onPrev);
-    car.removeEventListener('touchstart', onTs);
-    car.removeEventListener('touchmove', onTm);
-    car.removeEventListener('touchend', onTe);
-  };
-}
-
-/* ===================== UTIL & PAYMENT ===================== */
 
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({

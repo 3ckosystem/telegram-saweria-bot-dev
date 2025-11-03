@@ -26,7 +26,7 @@
   word-break:break-word; overflow-wrap:break-word;
 }
 
-/* Deskripsi di kartu: clamp 2 baris */
+/* Deskripsi di kartu: clamp 3 baris */
 .desc{
   color:var(--muted); font-size:14px; line-height:1.35;
   word-break:break-word; overflow-wrap:break-word;
@@ -36,19 +36,18 @@
 
 /* Tombol di kartu: rata kanan, berwarna saat belum dipilih, outline saat terpilih */
 .btn-outline{
-  align-self:flex-end;
+  align-self:flex-end;            /* RATA KANAN */
   height:40px; padding:0 16px; border-radius:16px;
   display:inline-grid; place-items:center; font-size:14px;
-  background:var(--accent); color:#fff; border:1.8px solid var(--accent);
+  background:var(--accent);       /* WARNA AKTIF */
+  color:#fff;
+  border:1.8px solid var(--accent);
   transition:all .22s ease;
 }
-/* kelas util kompatibel */
-.btn-primary-right{ align-self:flex-end; margin-left:auto; }
-.btn-colored{ background:var(--accent); color:#fff; border-color:var(--accent); }
-.btn-muted{ background:transparent; color:#ffa0b0; border-color:var(--stroke); }
-
 .card.selected .btn-outline{
-  background:transparent; color:var(--accent); border-color:var(--accent);
+  background:transparent;         /* TIDAK BERWARNA SAAT TERPILIH */
+  color:var(--accent);
+  border-color:var(--accent);
 }
 
 .card.selected{ outline:2px solid var(--accent); box-shadow:0 0 22px rgba(255,35,69,.25) }
@@ -76,68 +75,38 @@
 .qr-modal[hidden]{ display:none !important; pointer-events:none !important; }
 
 /* Feel lebih klik di mobile */
-.btn-outline, .cta { cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
-
-/* ===== DETAIL MODAL (carousel + gambar jaga rasio) ===== */
-.modal{
-  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
-  background:rgba(0,0,0,.65); padding:18px; z-index:8;
+.btn-outline, .cta {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
-.modal[hidden]{ display:none!important; pointer-events:none!important; }
 
+/* ===== DETAIL MODAL (image keeps its own aspect) ===== */
+/* Modal container tetap hampir full screen */
+.modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65);padding:18px;z-index:8}
+.modal[hidden]{display:none!important;pointer-events:none!important}
 .modal>.sheet{
-  width:min(94vw, 920px);        /* dinamis, hampir full */
-  max-height:96vh;               /* hampir full screen */
+  width:min(94vw,720px);
+  max-height:98vh;                 /* hampir full-screen */
   overflow:auto;
-  background:#0f0f10; border:1px solid #ffffff14; border-radius:16px;
-  padding:16px; color:#fff; display:flex; flex-direction:column; gap:12px;
+  background:#0f0f10;border:1px solid #ffffff14;border-radius:16px;
+  padding:16px;color:#fff;display:flex;flex-direction:column;gap:12px;
 }
 
-/* HERO jadi container carousel */
-.sheet .hero{ border-radius:12px; background:#0c0c0d; border:1px solid #ffffff14; overflow:hidden }
-
-/* === Carousel === */
-.carousel{ position:relative; width:100%; }
-.carousel img{
-  display:block;
-  max-width:100%;
-  max-height:62vh;              /* besar namun masih sisakan ruang judul/deskripsi */
-  width:auto; height:auto;
-  margin:0 auto;
-  border-radius:12px;
-  object-fit:contain;           /* JAGA RASIO TANPA CROP/ZOOM */
-  background:#0c0c0d;
+/* HERO jadi blok biasa; tinggi akan di-set dinamis oleh JS */
+.sheet .hero{border-radius:12px;background:#1c0f12;border:1px solid #ffffff14;overflow:hidden}
+.sheet .hero img{
+  display:block;width:100%;
+  height:auto;                     /* default: biar rasio asli terjaga */
+  object-fit:contain;              /* JS bisa ganti ke 'cover' jika mau fill */
 }
 
-/* tombol prev/next */
-.carousel .nav{
-  position:absolute; top:50%; transform:translateY(-50%);
-  width:40px; height:40px; border-radius:50%;
-  background:rgba(0,0,0,.55); color:#fff; border:1px solid #ffffff33;
-  display:grid; place-items:center; font-size:22px; cursor:pointer;
-  z-index:3; pointer-events:auto;
-}
-.carousel .prev{ left:10px; }
-.carousel .next{ right:10px; }
+/* teks & tombol */
+.sheet .title{font-size:22px;font-weight:900;margin:0 4px}
+.sheet .desc{color:#cdd0d4;font-size:14px;line-height:1.45;white-space:pre-wrap;margin:0 4px}
+.sheet .row{display:flex;gap:10px;margin-top:4px}
+.sheet .close,.sheet .add{flex:1 1 auto;height:44px;border-radius:14px;border:1px solid #ffffff1f;color:#fff;background:#1b1b1b;cursor:pointer}
+.sheet .add{background:#ff2345;border-color:#ff2345;font-weight:800}
 
-/* indikator dot */
-.carousel .dots{
-  position:absolute; left:0; right:0; bottom:8px;
-  display:flex; gap:6px; justify-content:center; z-index:2; pointer-events:auto;
-}
-.carousel .dot{
-  width:7px; height:7px; border-radius:50%;
-  border:1px solid #ffffff77; background:transparent;
-}
-.carousel .dot.active{ background:#fff; }
-
-/* teks & tombol bawah modal */
-.sheet .title{ font-size:24px; font-weight:900; margin:0 4px }
-.sheet .desc{ color:#cdd0d4; font-size:15px; line-height:1.45; white-space:pre-wrap; margin:0 4px }
-.sheet .row{ display:flex; gap:10px; margin-top:4px }
-.sheet .close, .sheet .add{
-  flex:1 1 auto; height:48px; border-radius:14px; border:1px solid #ffffff1f; color:#fff;
-  background:#1b1b1b; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation;
-  font-weight:700;
-}
-.sheet .add{ background:#ff2345; border-color:#ff2345 }
+/* tombol di kartu tetap klik-able */
+.btn-outline, .cta { cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
