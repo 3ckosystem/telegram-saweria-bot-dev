@@ -24,6 +24,8 @@ function showEmpty(message){
 // Normalisasi transform ImageKit agar tidak dobel '?'
 function withTransform(url, tr = 'w-600,fo-auto'){
   if (!url) return url;
+  // kalau sudah ada ?tr=, biarkan saja
+  if (/\btr=/.test(url)) return url;
   return url.includes('?') ? `${url}&tr=${tr}` : `${url}?tr=${tr}`;
 }
 
@@ -350,7 +352,6 @@ function showPaymentExpired() {
   document.getElementById('btnBackOrder')?.addEventListener('click', hideQRModal);
 }
 
-
 async function onPay(){
   const selected = getSelectedIds();
   const amount = selected.length * PRICE_PER_GROUP;
@@ -403,19 +404,21 @@ async function onPay(){
     else qrImg.addEventListener('load', onReady, { once: true });
   }
 
+  // Poll status pembayaran
   const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
-  let t = setInterval(async ()=>{
-    try{
+  const timer = setInterval(async () => {
+    try {
       const r = await fetch(statusUrl);
-      if(!r.ok) return;
+      if (!r.ok) return;
       const s = await r.json();
-      if (s.status === "PAID"){ 
-        clearInterval(t); 
+      if (s.status === "PAID") {
+        clearInterval(timer);
         hideQRModal();        // ini juga mematikan countdown
-        tg?.close?.(); 
+        tg?.close?.();
       }
-
-      catch{}
+    } catch (err) {
+      // abaikan error polling
+    }
   }, 2000);
 }
 
@@ -432,4 +435,3 @@ function hideQRModal(){
   m.hidden = true;
   m.innerHTML = '';
 }
-
