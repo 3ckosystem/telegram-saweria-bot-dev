@@ -92,115 +92,138 @@
   </div>
 
   <!-- ===== Gate-first boot ===== -->
-  <script>
-    const tg = window.Telegram?.WebApp;
-    try { tg?.ready?.(); tg?.expand?.(); } catch {}
+   <script>
+  const tg = window.Telegram?.WebApp;
+  try { tg?.ready?.(); tg?.expand?.(); } catch {}
 
-    // --- Ambil UID secara robust ---
-    function parseUidFromInitData(initDataStr){
-      if (!initDataStr) return null;
-      try {
-        const usp = new URLSearchParams(initDataStr);
-        const userStr = usp.get('user');
-        if (!userStr) return null;
-        const o = JSON.parse(userStr);
-        const id = Number(o?.id);
-        return Number.isFinite(id) ? id : null;
-      } catch { return null; }
+  // --- Ambil UID secara robust ---
+  function parseUidFromInitData(initDataStr){
+    if (!initDataStr) return null;
+    try {
+      const usp = new URLSearchParams(initDataStr);
+      const userStr = usp.get('user');
+      if (!userStr) return null;
+      const o = JSON.parse(userStr);
+      const id = Number(o?.id);
+      return Number.isFinite(id) ? id : null;
+    } catch { return null; }
+  }
+  function resolveUID(){
+    const u1 = tg?.initDataUnsafe?.user?.id;
+    if (u1) return Number(u1);
+    const u2 = parseUidFromInitData(tg?.initData);
+    if (u2) return u2;
+    const q = new URLSearchParams(location.search).get('uid');
+    return q ? Number(q) : null;
+  }
+  async function waitForUID(maxMs=5000){
+    const t0 = Date.now();
+    while (Date.now()-t0 < maxMs){
+      const u = resolveUID();
+      if (u) return u;
+      await new Promise(r=>setTimeout(r,150));
     }
-    function resolveUID(){
-      const u1 = tg?.initDataUnsafe?.user?.id;
-      if (u1) return Number(u1);
-      const u2 = parseUidFromInitData(tg?.initData);
-      if (u2) return u2;
-      const q = new URLSearchParams(location.search).get('uid');
-      return q ? Number(q) : null;
+    return null;
+  }
+
+  function setGateHTML(html){
+    const panel = document.getElementById('gate-panel');
+    panel.innerHTML = html;
+    document.getElementById('gate').hidden = false;
+    document.getElementById('app-root').hidden = true;
+  }
+  function renderLoading(){
+    setGateHTML(`
+      <h3 style="margin:0 0 8px">Memuat verifikasi…</h3>
+      <p style="opacity:.8;margin:0">Harap tunggu sebentar.</p>
+    `);
+  }
+  function renderNoUID(){
+    setGateHTML(`
+      <h3 style="margin:0 0 8px">Tidak ada UID Telegram</h3>
+      <p style="opacity:.8;margin:0 0 12px">Buka via bot atau tekan /start lagi, lalu coba lagi.</p>
+      <div class="row">
+        <button class="btn recheck" id="btnRetry">Coba Lagi</button>
+        <button class="btn closechat" id="btnOpenChat">Buka Chat</button>
+      </div>
+    `);
+    document.getElementById('btnRetry')?.addEventListener('click', boot);
+    document.getElementById('btnOpenChat')?.addEventListener('click', ()=> { try{ tg?.close?.(); }catch{} });
+  }
+  function renderGate(info){
+    const g = (info?.group_invites || []).filter(Boolean);
+    const c = (info?.channel_invites || []).filter(Boolean);
+    setGateHTML(`
+      <h3 style="margin:0 0 8px">Wajib Join/Subscribe Dulu</h3>
+      <p style="opacity:.85;margin:0 0 10px">
+        Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.
+      </p>
+      <div style="margin-top:12px">
+        ${g.map(u => `<a href="${u}" target="_blank" rel="noopener">Join Group</a>`).join("")}
+        ${c.map(u => `<a href="${u}" target="_blank" rel="noopener">Subscribe Channel</a>`).join("")}
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn recheck" id="btnRecheck">Re-check</button>
+        <button class="btn closechat" id="btnOpenChat">Buka Chat</button>
+      </div>
+      <p style="opacity:.8;margin-top:8px">Setelah join, kembali ke bot lalu tekan <b>Re-check</b>.</p>
+    `);
+    document.getElementById('btnRecheck')?.addEventListener('click', boot);
+    document.getElementById('btnOpenChat')?.addEventListener('click', ()=> { try{ tg?.close?.(); }catch{} });
+  }
+  function renderNetworkError(){
+    setGateHTML(`
+      <h3 style="margin:0 0 8px">Tidak bisa verifikasi</h3>
+      <p style="opacity:.8;margin:0 0 12px">Koneksi bermasalah. Coba lagi beberapa saat.</p>
+      <div class="row">
+        <button class="btn recheck" id="btnRetry">Coba Lagi</button>
+      </div>
+    `);
+    document.getElementById('btnRetry')?.addEventListener('click', boot);
+  }
+
+  async function boot(){
+    renderLoading();
+
+    // 1) pastikan UID tersedia
+    const uid = await waitForUID(5000);
+    const hint = document.getElementById('uid-hint');
+    if (!uid){
+      if (hint){ hint.hidden = false; hint.textContent = "Tidak ada UID Telegram. Buka via bot atau tekan /start lagi."; }
+      return renderNoUID();
     }
-    async function waitForUID(maxMs=2500){
-      const t0 = Date.now();
-      while (Date.now()-t0 < maxMs){
-        const u = resolveUID();
-        if (u) return u;
-        await new Promise(r=>setTimeout(r,120));
+    window.__UID__ = uid;
+    if (hint) hint.hidden = true;
+
+    // 2) cek gate ke server
+    try{
+      const res = await fetch(`/api/gate/status?uid=${encodeURIComponent(uid)}`, { cache:'no-store' });
+      if (res.status === 403){
+        const payload = await res.json(); // {detail:{...}}
+        return renderGate(payload.detail);
       }
-      return null;
-    }
-
-    function renderGate(info){
-      const g = (info?.group_invites || []).filter(Boolean);
-      const c = (info?.channel_invites || []).filter(Boolean);
-      const panel = document.getElementById('gate-panel');
-      panel.innerHTML = `
-        <h3 style="margin:0 0 8px">Wajib Join/Subscribe Dulu</h3>
-        <p style="opacity:.85;margin:0 0 10px">
-          Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.
-        </p>
-        <div style="margin-top:12px">
-          ${g.map(u => `<a href="${u}" target="_blank" rel="noopener">Join Group</a>`).join("")}
-          ${c.map(u => `<a href="${u}" target="_blank" rel="noopener">Subscribe Channel</a>`).join("")}
-        </div>
-        <div class="row">
-          <button class="btn recheck" id="btnRecheck">Re-check</button>
-          <button class="btn closechat" id="btnOpenChat">Buka Chat</button>
-        </div>
-        <p style="opacity:.8;margin-top:10px">Setelah join, kembali ke bot lalu tekan <b>Re-check</b>.</p>
-      `;
-      document.getElementById('btnRecheck')?.addEventListener('click', boot);
-      document.getElementById('btnOpenChat')?.addEventListener('click', ()=> {
-        try { tg?.close?.(); } catch {}
-      });
-    }
-
-    async function boot(){
-      // reset tampilan
-      document.getElementById('app-root').hidden = true;
-      document.getElementById('gate').hidden = false;
-      document.getElementById('gate-panel').innerHTML =
-        '<h3 style="margin:0 0 8px">Memuat verifikasi…</h3><p style="opacity:.8;margin:0">Harap tunggu sebentar.</p>';
-
-      // 1) pastikan UID tersedia
-      const uid = await waitForUID(2500);
-      const hint = document.getElementById('uid-hint');
-      if (!uid){
-        if (hint){ hint.hidden = false; hint.textContent = "Tidak ada UID Telegram. Buka via bot atau tekan /start lagi."; }
-        return; // tetap di layar gate
+      const data = await res.json();
+      if (!data?.passed){
+        return renderGate(data);
       }
-      window.__UID__ = uid; // dipakai app.js nantinya
-      if (hint) hint.hidden = true;
-
-      // 2) cek gate ke server
-      try{
-        const res = await fetch(`/api/gate/status?uid=${encodeURIComponent(uid)}`, { cache:'no-store' });
-        if (res.status === 403){
-          const payload = await res.json(); // {detail:{...}}
-          renderGate(payload.detail);
-          return;
-        }
-        const data = await res.json();
-        if (!data?.passed){
-          renderGate(data);
-          return;
-        }
-      }catch(e){
-        // gagal memeriksa → beri info ringan, tetap tahan di gate
-        document.getElementById('gate-panel').innerHTML =
-          '<h3 style="margin:0 0 8px">Tidak bisa verifikasi</h3><p style="opacity:.8;margin:0">Coba ulang beberapa saat lagi.</p><div class="row" style="margin-top:12px"><button class="btn recheck" id="btnRecheck">Coba Lagi</button></div>';
-        document.getElementById('btnRecheck')?.addEventListener('click', boot);
-        return;
-      }
-
-      // 3) lulus gate → sembunyikan gate & load app.js DINAMIS (baru render katalog)
-      document.getElementById('gate').hidden = true;
-      document.getElementById('app-root').hidden = false;
-
-      const s = document.createElement('script');
-      s.src = '/webapp/app.js?v=neon5';
-      s.defer = true;
-      document.body.appendChild(s);
+    }catch(e){
+      console.warn("Gate check failed:", e);
+      return renderNetworkError();
     }
 
-    // start
-    boot();
-  </script>
+    // 3) lulus gate → tampilkan app dan baru load app.js
+    document.getElementById('gate').hidden = true;
+    document.getElementById('app-root').hidden = false;
+
+    const s = document.createElement('script');
+    s.src = '/webapp/app.js?v=neon5';
+    s.defer = true;
+    document.body.appendChild(s);
+  }
+
+  // start
+  boot();
+</script>
+
 </body>
 </html>
