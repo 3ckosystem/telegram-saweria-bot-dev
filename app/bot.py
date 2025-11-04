@@ -72,7 +72,7 @@ def _webapp_url_for(uid: int) -> str:
     return f"{BASE_URL}/webapp/index.html?v=neon4&uid={uid}"
 
 async def _send_webapp_button(chat_id: int, uid: int, context: ContextTypes.DEFAULT_TYPE):
-    kb = [[KeyboardButton(text="🛍️ Katalog Grup VIP", web_app=WebAppInfo(url=_webapp_url_for(uid)))]]
+    kb = [[KeyboardButton(text="Join VIP", web_app=WebAppInfo(url=_webapp_url_for(uid)))]]
     await context.bot.send_message(
         chat_id=chat_id,
         text="Silahkan lanjutkan pemesanan dan pembayaran dengan klik tombol 🛍️ Katalog Grup VIP di bawah.",
