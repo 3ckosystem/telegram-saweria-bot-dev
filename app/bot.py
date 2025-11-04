@@ -98,18 +98,15 @@ async def fix_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def clear_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await clear_menu_button(context.application)
     await update.message.reply_text("✅ Menu Button dikembalikan ke default.")
-    
+
 async def fix_menu_here(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    url = WEBAPP_URL or f"{BASE_URL}/webapp/index.html?v=neon4"
+    url = _webapp_base_url()
     await context.bot.set_chat_menu_button(
         chat_id=chat_id,
         menu_button=MenuButtonWebApp(text=MENU_BUTTON_TEXT, web_app=WebAppInfo(url=url))
     )
     await update.message.reply_text("✅ Menu Button di chat ini diperbarui.")
-
-# register
-app.add_handler(CommandHandler("fix_menu_here", fix_menu_here))
 
 # ===================== UTIL: WEBAPP BUTTON (reply keyboard) =====================
 
@@ -467,8 +464,9 @@ async def send_invite_link(app: Application, user_id: int, target_group_id):
 def register_handlers(app: Application):
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("gate_debug", gate_debug))
-    app.add_handler(CommandHandler("reset_keyboard", reset_keyboard))  # opsional
-    app.add_handler(CommandHandler("fix_menu", fix_menu))              # set menu button ke Join VIP
-    app.add_handler(CommandHandler("clear_menu", clear_menu))          # hapus override menu
+    app.add_handler(CommandHandler("reset_keyboard", reset_keyboard))   # opsional
+    app.add_handler(CommandHandler("fix_menu", fix_menu))               # set menu button ke Join VIP
+    app.add_handler(CommandHandler("clear_menu", clear_menu))           # hapus override menu
+    app.add_handler(CommandHandler("fix_menu_here", fix_menu_here))     # set khusus chat ini
     app.add_handler(CallbackQueryHandler(on_recheck, pattern="^recheck_membership$"))
     app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^noop$"))
