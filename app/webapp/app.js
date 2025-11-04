@@ -376,41 +376,51 @@ async function onPay(){
   }
 
   const qrPngUrl = `${window.location.origin}/api/qr/${inv.invoice_id}.png?amount=${amount}&t=${Date.now()}`;
-  const selectedItems = LOADED_GROUPS.filter(g => selected.includes(String(g.id)));
-  const chipsHtml = selectedItems.map(g => `
-    <span style="
-      display:inline-block;margin:2px 6px 8px 0;
-      padding:6px 10px;border-radius:999px;
-      background:#1b1b1b;border:1px solid #ffffff22;
-      font-weight:700;font-size:12px;color:#fff;
-    ">${escapeHtml(g.name || String(g.id))}</span>
-  `).join("");
+  // === MODAL PEMBAYARAN DENGAN FORMAT INVOICE ===
+const selectedItems = LOADED_GROUPS.filter(g => selected.includes(String(g.id)));
+const listHtml = selectedItems.map((g,i)=>`
+  <tr>
+    <td style="padding:6px 8px;text-align:left;">${i+1}.</td>
+    <td style="padding:6px 8px;text-align:left;">${escapeHtml(g.name || g.id)}</td>
+    <td style="padding:6px 8px;text-align:right;">${formatRupiah(PRICE_PER_GROUP)}</td>
+  </tr>
+`).join("");
 
-  showQRModal(`
-    <div style="text-align:center">
-      <div style="font-weight:900;font-size:20px;margin-bottom:6px">
-        Pembayaran
-      </div>
+const totalHtml = `
+  <tr style="border-top:1px solid #ffffff22">
+    <td colspan="2" style="padding:6px 8px;text-align:left;font-weight:600;">Total</td>
+    <td style="padding:6px 8px;text-align:right;font-weight:600;">${formatRupiah(amount)}</td>
+  </tr>
+`;
 
-      <!-- Daftar grup yang dipesan -->
-      <div style="margin:4px 0 6px;opacity:.9;font-size:13px">Pesanan kamu:</div>
-      <div style="margin:0 0 6px">${chipsHtml || '<span style="opacity:.7">-</span>'}</div>
-
-      <div id="qrMsg" style="margin:6px 0 12px; opacity:.85">
-        Mohon tunggu sebentar (maks 3 menit) …
-      </div>
-
-      <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px">
-        <div id="qrProg" style="height:100%;width:0%;background:#fff3;border-radius:6px"></div>
-      </div>
-
-      <img id="qrImg" alt="QR" src="${qrPngUrl}"
-          style="max-width:100%;display:block;margin:0 auto;border-radius:10px;border:1px solid #ffffff1a">
-
-      <button class="close" id="closeModal">Tutup</button>
+showQRModal(`
+  <div style="text-align:center;font-family:sans-serif;">
+    <div style="font-weight:700;font-size:18px;margin-bottom:6px">
+      Pembayaran
     </div>
-  `);
-  document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
+
+    <div style="margin:6px 0 8px;opacity:.9;font-size:13px">Pesanan kamu:</div>
+    <table style="
+      width:100%;margin:0 auto 10px auto;border-collapse:collapse;
+      font-size:13px;color:#eee;max-width:320px;">
+      ${listHtml}${totalHtml}
+    </table>
+
+    <div id="qrMsg" style="margin:8px 0 12px; opacity:.85;font-size:13px;">
+      Mohon tunggu sebentar (maks 3 menit) …
+    </div>
+
+    <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px">
+      <div id="qrProg" style="height:100%;width:0%;background:#fff3;border-radius:6px"></div>
+    </div>
+
+    <img id="qrImg" alt="QR" src="${qrPngUrl}"
+      style="max-width:100%;display:block;margin:0 auto;border-radius:10px;border:1px solid #ffffff1a">
+
+    <button class="close" id="closeModal" style="margin-top:10px;">Tutup</button>
+  </div>
+`);
+document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
 
   // Fase 1: tunggu QR tampil (3 menit)
   startQrCountdown(180);
