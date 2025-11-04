@@ -99,6 +99,24 @@
     // >>>>> EDIT DI SINI: username bot kamu
     const BOT_USERNAME = "enSEXlopediaMinibot";
 
+    (function(){
+    const tg = window.Telegram?.WebApp;
+    try { tg?.ready?.(); } catch {}
+    const info = {
+      platform: tg?.platform,
+      initData_len: (tg?.initData || "").length,
+      has_user: !!tg?.initDataUnsafe?.user,
+      chat_type: tg?.initDataUnsafe?.chat?.type || null,
+      ua: navigator.userAgent
+    };
+    console.log("[MiniApp DEBUG]", info, tg?.initDataUnsafe?.user || null);
+    // tampilkan 1 baris kecil biar kamu bisa lihat cepat
+    const bar = document.createElement('div');
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;font:12px monospace;padding:4px 8px;background:#1118;color:#fff';
+    bar.textContent = `platform=${info.platform} user=${info.has_user} chat=${info.chat_type} initData=${info.initData_len}`;
+    document.body.appendChild(bar);
+    setTimeout(()=>bar.remove(), 3000);
+  })();
     function parseUidFromInitData(initDataStr){
       if (!initDataStr) return null;
       try {
