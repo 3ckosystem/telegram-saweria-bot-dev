@@ -6,208 +6,201 @@
   <title>EnSEXlopedia VIP Catalog</title>
   <meta name="theme-color" content="#0b0b0b"/>
 
-  <!-- Critical CSS mini biar gak "telanjang" -->
   <style>
-    :root{
-      --bg:#0b0b0b;--text:#fff;--muted:#b7b7b7;--accent:#ff2345;--stroke:#ff234566
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;background:var(--bg);color:var(--text);
-      font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial
-    }
+    :root{ --bg:#0b0b0b; --text:#fff; --muted:#b7b7b7; --accent:#ff2345; --stroke:#ff234566 }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{ margin:0; background:var(--bg); color:var(--text);
+          font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial }
 
-    .header{
-      position:sticky;top:0;z-index:5;padding:14px 16px 8px;
-      background:linear-gradient(180deg,rgba(0,0,0,.9),rgba(0,0,0,.45),transparent)
-    }
-    .brand{font-weight:900;font-size:22px}
-    .hint{
-      margin:6px 16px 0; font-size:12px; opacity:.7; color:var(--muted)
-    }
+    .header{ position:sticky; top:0; z-index:5; padding:14px 16px 8px;
+             background:linear-gradient(180deg,rgba(0,0,0,.9),rgba(0,0,0,.45),transparent) }
+    .brand{ font-weight:900; font-size:22px }
+    .hint{ margin:6px 16px 0; font-size:12px; opacity:.7; color:var(--muted) }
 
-    .list{padding:10px 14px 120px}
+    /* ——— App area (disembunyikan sampai gate lolos) ——— */
+    #app-root[hidden]{ display:none !important; }
+    .list{ padding:10px 14px 120px }
 
-    .paybar{
-      position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;gap:14px;
-      align-items:center;padding:14px 16px 18px;
+    .paybar{ position:fixed; left:0; right:0; bottom:0; z-index:6; display:flex; gap:14px;
+      align-items:center; padding:14px 16px 18px;
       background:linear-gradient(0deg,rgba(0,0,0,.85),rgba(0,0,0,.55));
-      border-top:1px solid #ffffff14;backdrop-filter:blur(8px)
-    }
-    .total{flex:1;display:flex;flex-direction:column}
-    .total small{color:var(--muted)}
-    .badge{
-      display:inline-grid;place-items:center;
-    }
-    .cta{
-      appearance:none;border:0;min-width:230px;height:48px;border-radius:22px;
-      padding:0 18px;font-weight:800;color:#fff;background:var(--accent)
-    }
-    .cta:disabled{filter:grayscale(1) opacity(.6)}
+      border-top:1px solid #ffffff14; backdrop-filter:blur(8px) }
+    .total{ flex:1; display:flex; flex-direction:column }
+    .total small{ color:var(--muted) }
+    .badge{ display:inline-grid; place-items:center; }
+    .cta{ appearance:none; border:0; min-width:230px; height:48px; border-radius:22px;
+      padding:0 18px; font-weight:800; color:#fff; background:var(--accent) }
+    .cta:disabled{ filter:grayscale(1) opacity(.6) }
 
-    /* —— Clamp deskripsi kartu agar tidak kepanjangan di list —— */
-    .desc{
-      display:-webkit-box;
-      -webkit-line-clamp:3;        /* jumlah baris yang ditampilkan */
-      -webkit-box-orient:vertical;
-      overflow:hidden;
-    }
+    .modal, .qr-modal{ position:fixed; inset:0; z-index:20; display:grid; place-items:end center;
+      background:rgba(0,0,0,.55); backdrop-filter:blur(3px) }
+    .qr-modal > div{ margin:16px; padding:16px; border-radius:14px; background:#111; border:1px solid #ffffff1f;
+      max-width:min(420px,94vw); color:#fff; text-align:center }
+    .qr-modal img{ width:100%; height:auto; border-radius:10px; border:1px solid #ffffff1a }
+    .qr-modal .close{ margin-top:12px; width:100%; height:44px; border-radius:12px; border:0;
+      background:#2b2b2b; color:#fff; font-weight:700 }
 
-    /* —— Modal baseline (detail & QR) —— */
-    .modal, .qr-modal{
-      position:fixed;inset:0;z-index:20;display:grid;place-items:end center;
-      background:rgba(0,0,0,.55);backdrop-filter:blur(3px)
+    /* —— Gate full-screen —— */
+    #gate{ position:fixed; inset:0; z-index:30; display:grid; place-items:center;
+           background:linear-gradient(180deg,rgba(0,0,0,.9),rgba(0,0,0,.7)) }
+    #gate[hidden]{ display:none !important; }
+    #gate .panel{
+      max-width:560px; margin:16px; padding:18px; border-radius:14px; background:#0f0f0f;
+      border:1px solid #ffffff22; color:#fff; text-align:center
     }
-    .qr-modal > div{
-      margin:16px;padding:16px;border-radius:14px;background:#111;border:1px solid #ffffff1f;
-      max-width:min(420px,94vw);color:#fff;text-align:center
+    #gate a{
+      display:block; padding:12px; border-radius:10px; background:#1b1b1b; border:1px solid #ffffff1a;
+      color:#fff; text-decoration:none; margin-top:10px
     }
-    .qr-modal img{width:100%;height:auto;border-radius:10px;border:1px solid #ffffff1a}
-    .qr-modal .close{
-      margin-top:12px;width:100%;height:44px;border-radius:12px;border:0;
-      background:#2b2b2b;color:#fff;font-weight:700
-    }
-
-    .modal .sheet{
-      width:100%;max-width:720px;background:#0f0f0f;color:#fff;
-      border-radius:16px 16px 0 0;border-top:1px solid #ffffff1a;
-      padding:14px 16px 16px
-    }
-    .modal .hero{
-      width:100%;height:180px;border-radius:12px;border:1px solid #ffffff1a;
-      background:#151515 center/cover no-repeat;margin-bottom:12px
-    }
-    .modal .title{font-size:20px;font-weight:900;margin-bottom:6px}
-    .modal .desc{color:#c6c6c6;white-space:pre-wrap;margin-bottom:12px;display:block;-webkit-line-clamp:unset;-webkit-box-orient:unset;overflow:visible}
-    .modal .row{display:flex;gap:10px}
-    .modal button{
-      flex:1;height:44px;border-radius:12px;border:0;font-weight:800
-    }
-    .modal .close{background:#2b2b2b;color:#fff}
-    .modal .add{background:var(--accent);color:#fff}
-
-    /* —— Gate overlay —— */
-    #gate-block{ place-items:center; }
-    #gate-block .panel{
-      max-width:560px;margin:16px;padding:18px;border-radius:14px;background:#0f0f0f;
-      border:1px solid #ffffff22;color:#fff;text-align:center
-    }
-    #gate-block a{
-      display:block;padding:12px;border-radius:10px;background:#1b1b1b;border:1px solid #ffffff1a;
-      color:#fff;text-decoration:none;margin-top:10px
-    }
+    #gate .row{ display:flex; gap:10px; margin-top:14px }
+    #gate .btn{ flex:1; height:44px; border-radius:12px; border:0; font-weight:800 }
+    #gate .recheck{ background:var(--accent); color:#fff }
+    #gate .closechat{ background:#2b2b2b; color:#fff }
   </style>
 
-  <!-- Styles utama (komponen kartu, tombol, dsb) -->
+  <!-- komponen kartu, tombol, dll. (dipakai app.js saat sudah lolos gate) -->
   <link rel="stylesheet" href="/webapp/styles.css?v=neon7">
-
 </head>
 <body>
   <header class="header">
     <div class="brand">VIP Catalog</div>
-    <!-- Banner hint (muncul saat UID tidak tersedia) -->
     <div id="uid-hint" class="hint" hidden></div>
   </header>
 
-  <!-- daftar kartu -->
-  <main id="list" class="list"></main>
+  <!-- === APP ROOT: disembunyikan sampai gate PASSED === -->
+  <div id="app-root" hidden>
+    <main id="list" class="list"></main>
 
-  <!-- bar total + checkout -->
-  <footer class="paybar">
-    <div class="total">
-      <small>Total <span id="cartBadge" class="badge">0</span> Group:</small>
-      <strong id="total-text" style="font-size:24px">Rp 0</strong>
+    <footer class="paybar">
+      <div class="total">
+        <small>Total <span id="cartBadge" class="badge">0</span> Group:</small>
+        <strong id="total-text" style="font-size:24px">Rp 0</strong>
+      </div>
+      <button id="pay" class="cta" disabled>Lanjutkan Pembayaran</button>
+    </footer>
+
+    <div id="qr" class="qr-modal" hidden></div>
+    <div id="detail" class="modal" hidden></div>
+  </div>
+
+  <!-- === GATE OVERLAY (default tampil sampai lulus) === -->
+  <div id="gate">
+    <div class="panel" id="gate-panel">
+      <h3 style="margin:0 0 8px">Memuat verifikasi…</h3>
+      <p style="opacity:.8;margin:0">Harap tunggu sebentar.</p>
     </div>
-    <button id="pay" class="cta" disabled>Lanjutkan Pembayaran</button>
-  </footer>
+  </div>
 
-  <!-- modal QR & Detail -->
-  <div id="qr" class="qr-modal" hidden></div>
-  <div id="detail" class="modal" hidden></div>
-
-  <!-- Gate overlay (ditampilkan hanya jika server mengembalikan 403) -->
-  <div id="gate-block" class="qr-modal" hidden></div>
-
-  <!-- App logic -->
-  <script src="/webapp/app.js?v=neon5"></script>
-
-  <!-- Gate check: WAJIB jalan (tunggu UID muncul dulu), tampilkan overlay jika belum lolos -->
+  <!-- ===== Gate-first boot ===== -->
   <script>
-    // Tunggu UID dari app.js (ambil dari initDataUnsafe / initData / ?uid)
-    async function waitForUID(maxMs = 2000) {
-      const start = Date.now();
-      while (Date.now() - start < maxMs) {
-        let uid = window.__UID__;
-        if (!uid && window.Telegram && Telegram.WebApp) {
-          try { Telegram.WebApp.ready?.(); } catch(e){}
-          uid = Telegram.WebApp.initDataUnsafe?.user?.id || uid;
-          if (!uid && typeof Telegram.WebApp.initData === "string") {
-            try {
-              const usp = new URLSearchParams(Telegram.WebApp.initData);
-              const u = JSON.parse(usp.get("user") || "null");
-              uid = u?.id || uid;
-            } catch {}
-          }
-        }
-        if (uid) return uid;
-        await new Promise(r => setTimeout(r, 120));
+    const tg = window.Telegram?.WebApp;
+    try { tg?.ready?.(); tg?.expand?.(); } catch {}
+
+    // --- Ambil UID secara robust ---
+    function parseUidFromInitData(initDataStr){
+      if (!initDataStr) return null;
+      try {
+        const usp = new URLSearchParams(initDataStr);
+        const userStr = usp.get('user');
+        if (!userStr) return null;
+        const o = JSON.parse(userStr);
+        const id = Number(o?.id);
+        return Number.isFinite(id) ? id : null;
+      } catch { return null; }
+    }
+    function resolveUID(){
+      const u1 = tg?.initDataUnsafe?.user?.id;
+      if (u1) return Number(u1);
+      const u2 = parseUidFromInitData(tg?.initData);
+      if (u2) return u2;
+      const q = new URLSearchParams(location.search).get('uid');
+      return q ? Number(q) : null;
+    }
+    async function waitForUID(maxMs=2500){
+      const t0 = Date.now();
+      while (Date.now()-t0 < maxMs){
+        const u = resolveUID();
+        if (u) return u;
+        await new Promise(r=>setTimeout(r,120));
       }
       return null;
     }
 
-    function showGateBlock(info) {
+    function renderGate(info){
       const g = (info?.group_invites || []).filter(Boolean);
       const c = (info?.channel_invites || []).filter(Boolean);
-      const el = document.getElementById('gate-block');
-      el.innerHTML = `
-        <div class="panel">
-          <h3 style="margin:0 0 8px">Wajib Join/Subscribe Dulu</h3>
-          <p style="opacity:.85;margin:0 0 10px">
-            Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.
-          </p>
-          <div style="margin-top:12px">
-            ${g.map(u => `<a href="${u}" target="_blank" rel="noopener">Join Group</a>`).join("")}
-            ${c.map(u => `<a href="${u}" target="_blank" rel="noopener">Subscribe Channel</a>`).join("")}
-          </div>
-          <p style="opacity:.8;margin-top:14px">Setelah join, kembali ke bot dan tekan <b>Re-check</b>.</p>
+      const panel = document.getElementById('gate-panel');
+      panel.innerHTML = `
+        <h3 style="margin:0 0 8px">Wajib Join/Subscribe Dulu</h3>
+        <p style="opacity:.85;margin:0 0 10px">
+          Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.
+        </p>
+        <div style="margin-top:12px">
+          ${g.map(u => `<a href="${u}" target="_blank" rel="noopener">Join Group</a>`).join("")}
+          ${c.map(u => `<a href="${u}" target="_blank" rel="noopener">Subscribe Channel</a>`).join("")}
         </div>
+        <div class="row">
+          <button class="btn recheck" id="btnRecheck">Re-check</button>
+          <button class="btn closechat" id="btnOpenChat">Buka Chat</button>
+        </div>
+        <p style="opacity:.8;margin-top:10px">Setelah join, kembali ke bot lalu tekan <b>Re-check</b>.</p>
       `;
-      el.hidden = false; // overlay muncul & memblok interaksi di belakangnya
+      document.getElementById('btnRecheck')?.addEventListener('click', boot);
+      document.getElementById('btnOpenChat')?.addEventListener('click', ()=> {
+        try { tg?.close?.(); } catch {}
+      });
     }
 
-    (async () => {
-      const hint = document.getElementById('uid-hint');
-      const uid = await waitForUID(2200);
+    async function boot(){
+      // reset tampilan
+      document.getElementById('app-root').hidden = true;
+      document.getElementById('gate').hidden = false;
+      document.getElementById('gate-panel').innerHTML =
+        '<h3 style="margin:0 0 8px">Memuat verifikasi…</h3><p style="opacity:.8;margin:0">Harap tunggu sebentar.</p>';
 
-      if (!uid) {
-        // UID tidak ada → tunjukkan hint, tombol Bayar tetap dinonaktifkan oleh app.js
-        if (hint) {
-          hint.hidden = false;
-          hint.textContent = "Tidak ada UID Telegram. Buka via bot atau tekan /start lagi.";
+      // 1) pastikan UID tersedia
+      const uid = await waitForUID(2500);
+      const hint = document.getElementById('uid-hint');
+      if (!uid){
+        if (hint){ hint.hidden = false; hint.textContent = "Tidak ada UID Telegram. Buka via bot atau tekan /start lagi."; }
+        return; // tetap di layar gate
+      }
+      window.__UID__ = uid; // dipakai app.js nantinya
+      if (hint) hint.hidden = true;
+
+      // 2) cek gate ke server
+      try{
+        const res = await fetch(`/api/gate/status?uid=${encodeURIComponent(uid)}`, { cache:'no-store' });
+        if (res.status === 403){
+          const payload = await res.json(); // {detail:{...}}
+          renderGate(payload.detail);
+          return;
         }
+        const data = await res.json();
+        if (!data?.passed){
+          renderGate(data);
+          return;
+        }
+      }catch(e){
+        // gagal memeriksa → beri info ringan, tetap tahan di gate
+        document.getElementById('gate-panel').innerHTML =
+          '<h3 style="margin:0 0 8px">Tidak bisa verifikasi</h3><p style="opacity:.8;margin:0">Coba ulang beberapa saat lagi.</p><div class="row" style="margin-top:12px"><button class="btn recheck" id="btnRecheck">Coba Lagi</button></div>';
+        document.getElementById('btnRecheck')?.addEventListener('click', boot);
         return;
       }
 
-      // UID ada → lakukan gate check ke server
-      try {
-        const res = await fetch(`/api/gate/status?uid=${encodeURIComponent(uid)}`, { cache: 'no-store' });
-        if (res.status === 403) {
-          const payload = await res.json(); // { detail: {...} }
-          showGateBlock(payload.detail);
-          return;
-        }
-        const data = await res.json(); // { passed: true, ... }
-        if (!data?.passed) {
-          showGateBlock(data);
-        }
-        // kalau passed, biarkan Mini App berjalan normal
-      } catch (e) {
-        // Jika error jaringan, jangan blokir total — user masih bisa mencoba lagi
-        console.warn("Gate check failed:", e);
-      }
-    })();
-  </script>
+      // 3) lulus gate → sembunyikan gate & load app.js DINAMIS (baru render katalog)
+      document.getElementById('gate').hidden = true;
+      document.getElementById('app-root').hidden = false;
 
+      const s = document.createElement('script');
+      s.src = '/webapp/app.js?v=neon5';
+      s.defer = true;
+      document.body.appendChild(s);
+    }
+
+    // start
+    boot();
+  </script>
 </body>
 </html>
