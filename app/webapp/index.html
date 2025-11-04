@@ -132,59 +132,82 @@
   <!-- App logic -->
   <script src="/webapp/app.js?v=neon5"></script>
 
-  <!-- Gate check: hanya jalan kalau UID tersedia -->
+  <!-- Gate check: WAJIB jalan (tunggu UID muncul dulu), tampilkan overlay jika belum lolos -->
   <script>
-  (async () => {
-    // Prioritas: gunakan UID yang sudah dihitung app.js (initDataUnsafe/initData/?uid)
-    let uid = window.__UID__;
-    if (!uid && window.Telegram && Telegram.WebApp) {
-      // fallback kecil jika app.js belum selesai inisialisasi
-      try { Telegram.WebApp.ready?.(); } catch(e){}
-      uid = Telegram.WebApp.initDataUnsafe?.user?.id || uid;
+    // Tunggu UID dari app.js (ambil dari initDataUnsafe / initData / ?uid)
+    async function waitForUID(maxMs = 2000) {
+      const start = Date.now();
+      while (Date.now() - start < maxMs) {
+        let uid = window.__UID__;
+        if (!uid && window.Telegram && Telegram.WebApp) {
+          try { Telegram.WebApp.ready?.(); } catch(e){}
+          uid = Telegram.WebApp.initDataUnsafe?.user?.id || uid;
+          if (!uid && typeof Telegram.WebApp.initData === "string") {
+            try {
+              const usp = new URLSearchParams(Telegram.WebApp.initData);
+              const u = JSON.parse(usp.get("user") || "null");
+              uid = u?.id || uid;
+            } catch {}
+          }
+        }
+        if (uid) return uid;
+        await new Promise(r => setTimeout(r, 120));
+      }
+      return null;
     }
 
-    // Jika UID belum ada → jangan blokir; banner & tombol bayar sudah ditangani app.js
-    if (!uid) return;
-
-    // Cek gate ke server
-    try {
-      const res = await fetch(`/api/gate/status?uid=${encodeURIComponent(uid)}`, { cache: 'no-store' });
-      if (res.status === 403) {
-        const payload = await res.json(); // {detail:{...}}
-        showGateBlock(payload.detail);
-        return;
-      }
-      const data = await res.json(); // {passed:true,...}
-      if (!data?.passed) {
-        showGateBlock(data);
-        return;
-      }
-      // lulus → list akan dirender oleh app.js
-    } catch (e) {
-      // diamkan; UI tetap jalan. Pengguna bisa coba ulang.
-      console.warn("Gate check failed:", e);
-    }
-  })();
-
-  function showGateBlock(info) {
-    const g = (info?.group_invites || []).filter(Boolean);
-    const c = (info?.channel_invites || []).filter(Boolean);
-    const el = document.getElementById('gate-block');
-    el.innerHTML = `
-      <div class="panel">
-        <h3 style="margin:0 0 8px">Wajib Join/Subscribe Dulu</h3>
-        <p style="opacity:.85;margin:0 0 10px">
-          Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.
-        </p>
-        <div style="margin-top:12px">
-          ${g.map(u => `<a href="${u}" target="_blank" rel="noopener">Join Group</a>`).join("")}
-          ${c.map(u => `<a href="${u}" target="_blank" rel="noopener">Subscribe Channel</a>`).join("")}
+    function showGateBlock(info) {
+      const g = (info?.group_invites || []).filter(Boolean);
+      const c = (info?.channel_invites || []).filter(Boolean);
+      const el = document.getElementById('gate-block');
+      el.innerHTML = `
+        <div class="panel">
+          <h3 style="margin:0 0 8px">Wajib Join/Subscribe Dulu</h3>
+          <p style="opacity:.85;margin:0 0 10px">
+            Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.
+          </p>
+          <div style="margin-top:12px">
+            ${g.map(u => `<a href="${u}" target="_blank" rel="noopener">Join Group</a>`).join("")}
+            ${c.map(u => `<a href="${u}" target="_blank" rel="noopener">Subscribe Channel</a>`).join("")}
+          </div>
+          <p style="opacity:.8;margin-top:14px">Setelah join, kembali ke bot dan tekan <b>Re-check</b>.</p>
         </div>
-        <p style="opacity:.8;margin-top:14px">Setelah join, kembali ke bot dan tekan <b>Re-check</b>.</p>
-      </div>
-    `;
-    el.hidden = false;
-  }
+      `;
+      el.hidden = false; // overlay muncul & memblok interaksi di belakangnya
+    }
+
+    (async () => {
+      const hint = document.getElementById('uid-hint');
+      const uid = await waitForUID(2200);
+
+      if (!uid) {
+        // UID tidak ada → tunjukkan hint, tombol Bayar tetap dinonaktifkan oleh app.js
+        if (hint) {
+          hint.hidden = false;
+          hint.textContent = "Tidak ada UID Telegram. Buka via bot atau tekan /start lagi.";
+        }
+        return;
+      }
+
+      // UID ada → lakukan gate check ke server
+      try {
+        const res = await fetch(`/api/gate/status?uid=${encodeURIComponent(uid)}`, { cache: 'no-store' });
+        if (res.status === 403) {
+          const payload = await res.json(); // { detail: {...} }
+          showGateBlock(payload.detail);
+          return;
+        }
+        const data = await res.json(); // { passed: true, ... }
+        if (!data?.passed) {
+          showGateBlock(data);
+        }
+        // kalau passed, biarkan Mini App berjalan normal
+      } catch (e) {
+        // Jika error jaringan, jangan blokir total — user masih bisa mencoba lagi
+        console.warn("Gate check failed:", e);
+      }
+    })();
   </script>
+
 </body>
 </html>
