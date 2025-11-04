@@ -1,6 +1,9 @@
 // app/webapp/app.js
 const tg = window.Telegram?.WebApp;
-tg?.expand();
+
+// Pastikan init WebApp siap dulu (beberapa klien butuh ready() dulu baru initDataUnsafe terisi)
+try { tg?.ready?.(); } catch {}
+try { tg?.expand?.(); } catch {}
 
 let PRICE_PER_GROUP = 25000;
 let LOADED_GROUPS = [];
@@ -29,7 +32,59 @@ function truncateText(text, max = MAX_DESC_CHARS) {
   }
 }
 
+/* ---------------- UID Utilities ---------------- */
+
+function parseUidFromInitData(initDataStr) {
+  // tg.initData adalah querystring yang ditandatangani; field 'user' berisi JSON user
+  if (!initDataStr) return null;
+  try {
+    const usp = new URLSearchParams(initDataStr);
+    const userStr = usp.get('user');
+    if (!userStr) return null;
+    const obj = JSON.parse(userStr);
+    const id = obj && obj.id ? Number(obj.id) : null;
+    return Number.isFinite(id) ? id : null;
+  } catch { return null; }
+}
+
+function getUserId() {
+  // 1) Sumber utama: initDataUnsafe.user.id (paling mudah)
+  const u1 = tg?.initDataUnsafe?.user?.id;
+  if (u1) return Number(u1);
+
+  // 2) Fallback: parse dari initData (string bertanda tangan)
+  const u2 = parseUidFromInitData(tg?.initData);
+  if (u2) return u2;
+
+  // 3) Fallback terakhir: query param ?uid=
+  const qp = new URLSearchParams(window.location.search);
+  const u3 = qp.get("uid");
+  return u3 ? Number(u3) : null;
+}
+
+// Simpan ke global untuk debugging ringan
+window.__UID__ = getUserId();
+
+/* ------------------------------------------------ */
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // Tema (opsional): sinkronkan warna agar lebih native
+  try {
+    const th = tg?.themeParams || {};
+    if (th?.bg_color) document.documentElement.style.setProperty('--tg-bg', `#${th.bg_color}`);
+    if (th?.text_color) document.documentElement.style.setProperty('--tg-text', `#${th.text_color}`);
+    if (th?.button_color) document.documentElement.style.setProperty('--tg-btn', `#${th.button_color}`);
+    if (th?.button_text_color) document.documentElement.style.setProperty('--tg-btn-text', `#${th.button_text_color}`);
+  } catch {}
+
+  // Tampilkan hint jika UID belum tersedia, tapi JANGAN blokir UI
+  const banner = document.getElementById('uid-hint');
+  const uidNow = window.__UID__;
+  if (!uidNow && banner) {
+    banner.hidden = false; // pastikan ada elemen <div id="uid-hint" hidden>…</div> di HTML
+    banner.innerText = "Tidak ada UID Telegram. Buka via bot atau tekan /start lagi.";
+  }
+
   try {
     const r = await fetch('/api/config', { cache: 'no-store' });
     const cfg = await r.json();
@@ -193,9 +248,6 @@ function openDetailModal(item){
   m.addEventListener('click', (e) => { if (e.target === m) closeDetailModal(); }, { once:true });
 }
 
-
-
-
 function closeDetailModal(){
   const m = document.getElementById('detail');
   m.hidden = true;
@@ -226,16 +278,12 @@ function formatRupiah(n){
 
 function syncTotalText(){
   const t = getSelectedIds().length * PRICE_PER_GROUP;
+  const payBtn = document.getElementById('pay');
   document.getElementById('total-text').textContent = formatRupiah(t);
-  document.getElementById('pay')?.toggleAttribute('disabled', t <= 0);
-}
-
-function getUserId(){
-  const u1 = tg?.initDataUnsafe?.user?.id;
-  if (u1) return u1;
-  const qp = new URLSearchParams(window.location.search);
-  const u2 = qp.get("uid");
-  return u2 ? parseInt(u2, 10) : null;
+  // Disable jika tidak ada pilihan atau tidak ada UID
+  const disableBecauseNoUID = !window.__UID__;
+  const disabled = t <= 0 || disableBecauseNoUID;
+  payBtn?.toggleAttribute('disabled', disabled);
 }
 
 async function onPay(){
@@ -243,8 +291,11 @@ async function onPay(){
   const amount = selected.length * PRICE_PER_GROUP;
   if (!selected.length) return;
 
-  const userId = getUserId();
-  if (!userId) return showQRModal(`<div style="color:#f55">Gagal membaca user Telegram. Buka lewat tombol bot.</div>`);
+  const userId = window.__UID__ || getUserId();
+  if (!userId) {
+    showQRModal(`<div style="color:#f55">Gagal membaca user Telegram. Buka lewat tombol bot.</div>`);
+    return;
+  }
 
   let inv;
   try{
