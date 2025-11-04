@@ -9,6 +9,10 @@ let LOADED_GROUPS = [];
 // ====== Config truncate ======
 const MAX_DESC_CHARS = 120;
 
+const ADMIN_USERNAME = "ensexlopedia";         // Username admin
+let __qrImageReady = false;                    // true kalau QR.png sudah load
+let __statusPollTimer = null;                  // interval polling status
+
 // ====== Helpers UI ======
 function showEmpty(message){
   const root = document.getElementById('list');
@@ -296,7 +300,14 @@ function startQrCountdown(maxSeconds = 180) {
       const pct = ((maxSeconds - left) / maxSeconds) * 100;
       progEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
     }
-    if (left <= 0) return stopQrCountdown();
+    if (left <= 0) {
+      stopQrCountdown();
+      if (!__qrImageReady) {
+        showPaymentLoadFailed("Halaman pembayaran gagal dimuat");
+      }
+      return;
+    }
+
     left -= 1;
   };
 
@@ -376,6 +387,8 @@ async function onPay(){
   }
 
   const qrPngUrl = `${window.location.origin}/api/qr/${inv.invoice_id}.png?amount=${amount}&t=${Date.now()}`;
+  __qrImageReady = false;
+
   // === MODAL PEMBAYARAN DENGAN FORMAT INVOICE ===
 const selectedItems = LOADED_GROUPS.filter(g => selected.includes(String(g.id)));
 const listHtml = selectedItems.map((g,i)=>`
@@ -422,37 +435,43 @@ showQRModal(`
 `);
 document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
 
-  // Fase 1: tunggu QR tampil (3 menit)
-  startQrCountdown(180);
+// Fase 1: tunggu QR tampil (3 menit)
+startQrCountdown(180);
 
-  // Saat QR selesai diload → masuk fase 2 (5 menit)
-  const qrImg = document.getElementById('qrImg');
-  if (qrImg) {
-    const onReady = () => {
-      stopQrCountdown();
-      startPayCountdown(300); // 5 menit
-    };
-    if (qrImg.complete) onReady();
-    else qrImg.addEventListener('load', onReady, { once: true });
+// Saat QR selesai diload → masuk fase 2 (5 menit)
+const qrImg = document.getElementById('qrImg');
+if (qrImg) {
+  const onReady = () => {
+    __qrImageReady = true;
+    stopQrCountdown();
+    startPayCountdown(300); // 5 menit
+  };
+  if (qrImg.complete && qrImg.naturalWidth > 20) onReady();
+  else {
+    qrImg.addEventListener('load', () => {
+      if (qrImg.naturalWidth > 20) onReady();         // valid QR
+      else showPaymentLoadFailed();                   // file ada tapi isinya tak valid
+    }, { once:true });
+    qrImg.addEventListener('error', () => showPaymentLoadFailed(), { once:true });
   }
-
-  // Poll status pembayaran
-  const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
-  const timer = setInterval(async () => {
-    try {
-      const r = await fetch(statusUrl);
-      if (!r.ok) return;
-      const s = await r.json();
-      if (s.status === "PAID") {
-        clearInterval(timer);
-        hideQRModal();        // ini juga mematikan countdown
-        tg?.close?.();
-      }
-    } catch (err) {
-      // abaikan error polling
-    }
-  }, 2000);
 }
+
+// Polling status invoice
+const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
+if (__statusPollTimer) { clearInterval(__statusPollTimer); }
+__statusPollTimer = setInterval(async () => {
+  try {
+    const r = await fetch(statusUrl);
+    if (!r.ok) return;
+    const s = await r.json();
+    if (s.status === "PAID") {
+      clearInterval(__statusPollTimer); __statusPollTimer = null;
+      hideQRModal();
+      tg?.close?.();
+    }
+  } catch {}
+}, 2000);
+
 
 function showQRModal(html){
   const m = document.getElementById('qr');
@@ -463,7 +482,38 @@ function showQRModal(html){
 function hideQRModal(){
   stopQrCountdown();
   stopPayCountdown();
+  if (__statusPollTimer) { clearInterval(__statusPollTimer); __statusPollTimer = null; }
   const m = document.getElementById('qr');
   m.hidden = true;
   m.innerHTML = '';
+}
+
+
+function showPaymentLoadFailed(reason = "Halaman pembayaran gagal dimuat") {
+  stopQrCountdown();
+  stopPayCountdown();
+  if (__statusPollTimer) { clearInterval(__statusPollTimer); __statusPollTimer = null; }
+
+  const box = document.querySelector('#qr > div');
+  if (!box) return;
+  box.innerHTML = `
+    <div style="text-align:center">
+      <div style="font-weight:800;font-size:18px;margin-bottom:8px">${escapeHtml(reason)}</div>
+      <p style="opacity:.85;margin:0 0 14px;font-size:13px">
+        Silahkan chat admin dan kirimkan <b>screenshot</b> halaman ini untuk proses pembayaran manual.
+      </p>
+      <button id="btnChatAdmin"
+        style="width:100%;height:44px;border:0;border-radius:12px;font-weight:800;background:#2b2b2b;color:#fff;margin-bottom:10px">
+        Chat Admin @${ADMIN_USERNAME}
+      </button>
+      <button id="btnBack"
+        style="width:100%;height:44px;border:0;border-radius:12px;font-weight:800;background:#444;color:#fff">
+        Kembali ke Halaman Pemesanan
+      </button>
+    </div>
+  `;
+  document.getElementById('btnChatAdmin')?.addEventListener('click', () => {
+    try { tg?.openTelegramLink?.(`https://t.me/${ADMIN_USERNAME}`); } catch {}
+  });
+  document.getElementById('btnBack')?.addEventListener('click', hideQRModal);
 }
