@@ -14,7 +14,7 @@ from telegram import Update, Bot
 from telegram.ext import Application
 from telegram.error import Forbidden, BadRequest
 
-from .bot import build_app, register_handlers, send_invite_link
+from .bot import build_app, register_handlers, send_invite_link, set_global_menu_button
 from . import payments, storage
 from copy import deepcopy
 
@@ -662,6 +662,13 @@ async def on_start():
             url=f"{BASE_URL}/telegram/webhook",
             secret_token=WEBHOOK_SECRET or None,
         )
+        # setelah set_webhook ...
+        try:
+            await set_global_menu_button(bot_app)  # paksa label menu = MENU_BUTTON_TEXT
+            print("[menu-button] global menu button set")
+        except Exception as e:
+            print("[menu-button] set failed:", e)
+
     else:
         print("Skipping set_webhook: BASE_URL must start with https://")
 

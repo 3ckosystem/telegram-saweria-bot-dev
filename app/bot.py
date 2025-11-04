@@ -98,6 +98,18 @@ async def fix_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def clear_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await clear_menu_button(context.application)
     await update.message.reply_text("✅ Menu Button dikembalikan ke default.")
+    
+async def fix_menu_here(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    url = WEBAPP_URL or f"{BASE_URL}/webapp/index.html?v=neon4"
+    await context.bot.set_chat_menu_button(
+        chat_id=chat_id,
+        menu_button=MenuButtonWebApp(text=MENU_BUTTON_TEXT, web_app=WebAppInfo(url=url))
+    )
+    await update.message.reply_text("✅ Menu Button di chat ini diperbarui.")
+
+# register
+app.add_handler(CommandHandler("fix_menu_here", fix_menu_here))
 
 # ===================== UTIL: WEBAPP BUTTON (reply keyboard) =====================
 
