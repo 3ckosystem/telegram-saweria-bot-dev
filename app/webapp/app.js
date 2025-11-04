@@ -277,13 +277,14 @@ function syncTotalText(){
   payBtn?.toggleAttribute('disabled', disabled);
 }
 
+// ===== Countdown untuk "menunggu QR muncul" (fase 1) =====
 let __qrCountdownTimer = null;
 
 function startQrCountdown(maxSeconds = 180) {
   const msgEl = document.getElementById('qrMsg');
   const progEl = document.getElementById('qrProg');
-
   let left = Math.max(0, maxSeconds);
+
   const tick = () => {
     if (!msgEl) return stopQrCountdown();
     const mm = String(Math.floor(left / 60)).padStart(2, '0');
@@ -296,17 +297,59 @@ function startQrCountdown(maxSeconds = 180) {
     if (left <= 0) return stopQrCountdown();
     left -= 1;
   };
+
   stopQrCountdown();
   __qrCountdownTimer = setInterval(tick, 1000);
-  tick(); // render pertama
+  tick();
+}
+function stopQrCountdown() {
+  if (__qrCountdownTimer) { clearInterval(__qrCountdownTimer); __qrCountdownTimer = null; }
 }
 
-function stopQrCountdown() {
-  if (__qrCountdownTimer) {
-    clearInterval(__qrCountdownTimer);
-    __qrCountdownTimer = null;
-  }
+// ===== Countdown untuk "masa bayar" (fase 2) =====
+let __qrPayTimer = null;
+
+function startPayCountdown(maxSeconds = 300) { // 5 menit
+  const msgEl = document.getElementById('qrMsg');
+  const progEl = document.getElementById('qrProg');
+  let left = Math.max(0, maxSeconds);
+
+  const tick = () => {
+    if (!msgEl) return stopPayCountdown();
+    const mm = String(Math.floor(left / 60)).padStart(2, '0');
+    const ss = String(left % 60).padStart(2, '0');
+    msgEl.innerHTML = `Silahkan lakukan pembayaran dengan scan QRIS.<br>Waktu pelunasan pembayaran (${mm}:${ss})`;
+    if (progEl) {
+      const pct = ((maxSeconds - left) / maxSeconds) * 100;
+      progEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+    }
+    if (left <= 0) {
+      stopPayCountdown();
+      showPaymentExpired();
+      return;
+    }
+    left -= 1;
+  };
+
+  stopPayCountdown();
+  __qrPayTimer = setInterval(tick, 1000);
+  tick();
 }
+function stopPayCountdown() {
+  if (__qrPayTimer) { clearInterval(__qrPayTimer); __qrPayTimer = null; }
+}
+
+function showPaymentExpired() {
+  const box = document.querySelector('#qr > div');
+  if (!box) return;
+  box.innerHTML = `
+    <div style="font-weight:900;font-size:20px;margin-bottom:6px">Batas waktu pembayaran sudah habis!</div>
+    <div style="opacity:.85;margin:6px 0 12px">Silakan kembali ke halaman pemesanan untuk membuat tagihan baru.</div>
+    <button class="close" id="btnBackOrder">Kembali ke Halaman Pemesanan</button>
+  `;
+  document.getElementById('btnBackOrder')?.addEventListener('click', hideQRModal);
+}
+
 
 async function onPay(){
   const selected = getSelectedIds();
@@ -346,30 +389,33 @@ async function onPay(){
   `);
   document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
 
-  // mulai countdown 3 menit
+  // Fase 1: tunggu QR tampil (3 menit)
   startQrCountdown(180);
 
-  // jika QR sudah tampil, hentikan countdown & ubah pesan
+  // Saat QR selesai diload → masuk fase 2 (5 menit)
   const qrImg = document.getElementById('qrImg');
   if (qrImg) {
     const onReady = () => {
       stopQrCountdown();
-      const msgEl = document.getElementById('qrMsg');
-      if (msgEl) msgEl.textContent = 'Silakan scan QRIS dengan GoPay/QRIS Anda.';
+      startPayCountdown(300); // 5 menit
     };
     if (qrImg.complete) onReady();
     else qrImg.addEventListener('load', onReady, { once: true });
   }
-  
-  
+
   const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
   let t = setInterval(async ()=>{
     try{
       const r = await fetch(statusUrl);
       if(!r.ok) return;
       const s = await r.json();
-      if (s.status === "PAID"){ clearInterval(t); hideQRModal(); tg?.close?.(); }
-    }catch{}
+      if (s.status === "PAID"){ 
+        clearInterval(t); 
+        hideQRModal();        // ini juga mematikan countdown
+        tg?.close?.(); 
+      }
+
+      catch{}
   }, 2000);
 }
 
@@ -380,7 +426,8 @@ function showQRModal(html){
 }
 
 function hideQRModal(){
-  stopQrCountdown();           // <<< tambahkan baris ini
+  stopQrCountdown();
+  stopPayCountdown();
   const m = document.getElementById('qr');
   m.hidden = true;
   m.innerHTML = '';
