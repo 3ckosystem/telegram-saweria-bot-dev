@@ -253,35 +253,44 @@
     }
 
     function gateNeedJoin(info){
-    const gInv = (info?.group_invites || []);
-    const cInv = (info?.channel_invites || []);
-    const gTit = (info?.group_titles || []);
-    const cTit = (info?.channel_titles || []);
+  const gInv = info?.group_invites || [];
+  const cInv = info?.channel_invites || [];
+  const gTit = info?.group_titles   || [];
+  const cTit = info?.channel_titles || [];
+  const gMem = info?.mem_groups     || [];  //  1 / 0 / -1
+  const cMem = info?.mem_channels   || [];
 
-    const joinGroupBtns = gInv.map((u, i) => {
-      const title = gTit[i] ? `Join ${escapeHtml(gTit[i])}` : 'Join Group';
-      return `<a href="${u}" target="_blank" rel="noopener">${title}</a>`;
-    }).join("");
+  const groupsHtml = gInv.map((u, i) => {
+    const st = gMem[i];
+    if (st === 1) return ""; // sudah join → sembunyikan
+    const title = gTit[i] ? `Join ${escapeHtml(gTit[i])}` : "Join Group";
+    const hint  = (st === -1) ? " (bot perlu akses)" : "";
+    return `<a href="${u}" target="_blank" rel="noopener">${title}${hint}</a>`;
+  }).join("");
 
-    const subChanBtns = cInv.map((u, i) => {
-      const title = cTit[i] ? `Subscribe ${escapeHtml(cTit[i])}` : 'Subscribe Channel';
-      return `<a href="${u}" target="_blank" rel="noopener">${title}</a>`;
-    }).join("");
+  const chansHtml = cInv.map((u, i) => {
+    const st = cMem[i];
+    if (st === 1) return ""; // sudah subscribe → sembunyikan
+    const title = cTit[i] ? `Subscribe ${escapeHtml(cTit[i])}` : "Subscribe Channel";
+    const hint  = (st === -1) ? " (bot admin)" : "";
+    return `<a href="${u}" target="_blank" rel="noopener">${title}${hint}</a>`;
+  }).join("");
 
-    setGate(`
-      <h3 style="margin:0 0 8px">Wajib Join/Subscribe Dulu</h3>
-      <p style="opacity:.85;margin:0 0 10px">Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.</p>
-      <div style="margin-top:12px">${joinGroupBtns}${subChanBtns}</div>
-      <div class="row" style="margin-top:14px">
-        <button class="btn recheck" id="btnRecheck">Re-check</button>
-        <button class="btn closechat" id="btnOpenChat">Buka Chat</button>
-      </div>
-      <p style="opacity:.8;margin-top:8px">Setelah join, kembali ke bot lalu tekan <b>Re-check</b>.</p>
-    `);
+  setGate(`
+    <h3 style="margin:0 0 8px">Wajib Join/Subscribe Dulu</h3>
+    <p style="opacity:.85;margin:0 0 10px">Status: ${(info?.ok_count||0)}/${(info?.total_required||0)} terdeteksi join.</p>
+    <div style="margin-top:12px">${groupsHtml}${chansHtml}</div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn recheck" id="btnRecheck">Re-check</button>
+      <button class="btn closechat" id="btnOpenChat">Buka Chat</button>
+    </div>
+    <p style="opacity:.8;margin-top:8px">Setelah join, kembali ke bot lalu tekan <b>Re-check</b>.</p>
+  `);
 
-    document.getElementById('btnRecheck')?.addEventListener('click', boot);
-    document.getElementById('btnOpenChat')?.addEventListener('click', ()=> { try{ tg?.close?.(); }catch{} });
-  }
+  document.getElementById('btnRecheck')?.addEventListener('click', boot);
+  document.getElementById('btnOpenChat')?.addEventListener('click', ()=> { try{ tg?.close?.(); }catch{} });
+}
+
 
   // helper kecil agar aman HTML
   function escapeHtml(s){

@@ -119,15 +119,23 @@ async def gate_status(uid: int = Query(..., description="Telegram user_id")):
     ok_count = 0
     any_cannot = False
 
-    for cid in group_ids + channel_ids:
-        res = await _is_member_server(uid, cid)
-        if res == 1:
-            ok_count += 1
-        elif res == -1:
-            any_cannot = True
+    # === NEW: simpan status per item ===
+    mem_groups: list[int] = []   # 1 joined, 0 not, -1 cannot check
+    mem_channels: list[int] = []
 
-    # === judul untuk ditampilkan di Mini App ===
-    group_titles = await _resolve_titles_server(group_ids)
+    for gid in group_ids:
+        res = await _is_member_server(uid, gid)
+        mem_groups.append(res)
+        if res == 1: ok_count += 1
+        elif res == -1: any_cannot = True
+
+    for cid in channel_ids:
+        res = await _is_member_server(uid, cid)
+        mem_channels.append(res)
+        if res == 1: ok_count += 1
+        elif res == -1: any_cannot = True
+
+    group_titles   = await _resolve_titles_server(group_ids)
     channel_titles = await _resolve_titles_server(channel_ids)
 
     # evaluasi pass
@@ -146,11 +154,13 @@ async def gate_status(uid: int = Query(..., description="Telegram user_id")):
             "min_count": min_count,
             "group_invites": _split_env("REQUIRED_GROUP_INVITES"),
             "channel_invites": _split_env("REQUIRED_CHANNEL_INVITES"),
-            # NEW: kirim identitas + judul sejajar index
+            # identitas + judul + STATUS (sejajar index)
             "group_ids": group_ids,
             "channel_ids": channel_ids,
             "group_titles": group_titles,
             "channel_titles": channel_titles,
+            "mem_groups": mem_groups,       # <- NEW
+            "mem_channels": mem_channels,   # <- NEW
         }
         raise HTTPException(status_code=403, detail=detail)
 
@@ -158,12 +168,12 @@ async def gate_status(uid: int = Query(..., description="Telegram user_id")):
         "passed": True,
         "ok_count": ok_count,
         "total_required": total_required,
-        # Optional: juga kirim agar UI bisa tampilkan sesuatu bila perlu
         "group_ids": group_ids,
         "channel_ids": channel_ids,
         "group_titles": group_titles,
         "channel_titles": channel_titles,
     }
+
 
 
 # Robust reader utk GROUP_IDS_JSON & PRICE_IDR
