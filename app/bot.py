@@ -86,34 +86,23 @@ def _menu_webapp_url_for(uid: Optional[int] = None) -> str:
     return f"{BASE_URL}/webapp/?uid={uid}&t={int(time.time())}"
 
 async def install_global_menu_and_commands(bot, base_url: str):
-    """
-    Pasang tombol menu global tipe WebApp (supaya Telegram inject initData/UID)
-    + refresh daftar commands biar cache klien bersih.
-    Panggil sekali saat startup: await install_global_menu_and_commands(app.bot, BASE_URL)
-    """
-    webapp_url = f"{base_url.rstrip('/')}/webapp/"   # index.html auto
-
-    # 1) Set GLOBAL chat menu (berlaku untuk semua chat yang tidak punya override)
+    webapp_url = f"{base_url.rstrip('/')}/webapp/"  # index.html auto
+    # reset dulu -> pasang default (bersihin cache)
+    try:
+        await bot.set_chat_menu_button(chat_id=None, menu_button=None)
+    except Exception:
+        pass
+    # pasang WebApp lagi
     await bot.set_chat_menu_button(
         chat_id=None,
-        menu_button=MenuButtonWebApp(
-            text="Join VIP",                         # label yang tampil di menu
-            web_app=WebAppInfo(url=webapp_url)      # URL Mini App (HTTPS & domain sudah di-BotFather → Domain)
-        ),
+        menu_button=MenuButtonWebApp(text="Join VIP", web_app=WebAppInfo(url=webapp_url))
     )
+    cmds = [BotCommand("start","Buka katalog VIP"), BotCommand("refresh","Perbaiki tombol")]
+    for sc in (BotCommandScopeDefault(), BotCommandScopeAllPrivateChats()):
+        try: await bot.delete_my_commands(scope=sc)
+        except: pass
+        await bot.set_my_commands(cmds, scope=sc)
 
-    # 2) Refresh commands di beberapa scope (optional tapi bagus untuk menghapus cache lama)
-    commands = [
-        BotCommand("start", "Buka katalog VIP"),
-        BotCommand("gate_debug", "Lihat konfigurasi gate"),
-        BotCommand("reset_keyboard", "Hapus keyboard lama"),
-    ]
-    for scope in (BotCommandScopeDefault(), BotCommandScopeAllPrivateChats(), BotCommandScopeAllGroupChats()):
-        try:
-            await bot.delete_my_commands(scope=scope)
-        except Exception:
-            pass
-        await bot.set_my_commands(commands=commands, scope=scope)
 
 
 async def _reset_menu_to_default_for_chat(bot, chat_id: int):
@@ -410,11 +399,11 @@ async def on_recheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Tambahan: command untuk force refresh menu (kalau klien masih nge-cache)
 async def cmd_refresh(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    await _reset_menu_to_default_for_chat(context.bot, chat_id)
-    await update.message.reply_text(
-        "Tombol menu sudah disegarkan. Jika belum berubah, tutup chat ini lalu buka lagi, atau tarik ke bawah untuk reload."
-    )
+    from .main import BASE_URL  # atau kirim lewat env
+    await install_global_menu_and_commands(context.bot, BASE_URL)
+    await update.message.reply_text("✅ Menu diperbarui. Tutup & buka lagi Mini App dari tombol **Join VIP** di menu bawah.")
+
+
 
 # Opsional: debug tipe menu yang aktif
 async def cmd_debug_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
