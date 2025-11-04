@@ -434,44 +434,44 @@ showQRModal(`
   </div>
 `);
 document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
+  // Fase 1: tunggu QR tampil (3 menit)
+  startQrCountdown(180);
 
-// Fase 1: tunggu QR tampil (3 menit)
-startQrCountdown(180);
-
-// Saat QR selesai diload → masuk fase 2 (5 menit)
-const qrImg = document.getElementById('qrImg');
-if (qrImg) {
-  const onReady = () => {
-    __qrImageReady = true;
-    stopQrCountdown();
-    startPayCountdown(300); // 5 menit
-  };
-  if (qrImg.complete && qrImg.naturalWidth > 20) onReady();
-  else {
-    qrImg.addEventListener('load', () => {
-      if (qrImg.naturalWidth > 20) onReady();         // valid QR
-      else showPaymentLoadFailed();                   // file ada tapi isinya tak valid
-    }, { once:true });
-    qrImg.addEventListener('error', () => showPaymentLoadFailed(), { once:true });
-  }
-}
-
-// Polling status invoice
-const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
-if (__statusPollTimer) { clearInterval(__statusPollTimer); }
-__statusPollTimer = setInterval(async () => {
-  try {
-    const r = await fetch(statusUrl);
-    if (!r.ok) return;
-    const s = await r.json();
-    if (s.status === "PAID") {
-      clearInterval(__statusPollTimer); __statusPollTimer = null;
-      hideQRModal();
-      tg?.close?.();
+  // Saat QR selesai diload → masuk fase 2 (5 menit)
+  const qrImg = document.getElementById('qrImg');
+  if (qrImg) {
+    const onReady = () => {
+      __qrImageReady = true;
+      stopQrCountdown();
+      startPayCountdown(300); // 5 menit
+    };
+    if (qrImg.complete && qrImg.naturalWidth > 20) onReady();
+    else {
+      qrImg.addEventListener('load', () => {
+        if (qrImg.naturalWidth > 20) onReady();         // valid QR
+        else showPaymentLoadFailed();                   // file ada tapi isinya tak valid
+      }, { once:true });
+      qrImg.addEventListener('error', () => showPaymentLoadFailed(), { once:true });
     }
-  } catch {}
-}, 2000);
+  }
 
+  // Polling status invoice
+  const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
+  if (__statusPollTimer) { clearInterval(__statusPollTimer); }
+  __statusPollTimer = setInterval(async () => {
+    try {
+      const r = await fetch(statusUrl);
+      if (!r.ok) return;
+      const s = await r.json();
+      if (s.status === "PAID") {
+        clearInterval(__statusPollTimer); __statusPollTimer = null;
+        hideQRModal();
+        tg?.close?.();
+      }
+    } catch {}
+  }, 2000);
+
+}
 
 function showQRModal(html){
   const m = document.getElementById('qr');
