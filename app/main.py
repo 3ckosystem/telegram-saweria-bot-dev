@@ -62,6 +62,46 @@ async def _is_member_server(user_id: int, chat_id: str) -> int:
     except Exception:
         return -1
 
+# ----- di atas gate_status -----
+_NAME_CACHE: dict[str, str] = {}
+
+def _name_from_groups_env(chat_id: str) -> str | None:
+    # pakai nama dari GROUPS (env) bila ada
+    try:
+        for g in GROUPS:
+            if str(g.get("id")) == str(chat_id):
+                nm = str(g.get("name") or g.get("label") or "").strip()
+                if nm:
+                    return nm
+    except Exception:
+        pass
+    return None
+
+async def _resolve_titles_server(ids: list[str | int]) -> list[str]:
+    titles: list[str] = []
+    for cid in ids:
+        key = str(cid)
+        if key in _NAME_CACHE:
+            titles.append(_NAME_CACHE[key]); continue
+
+        # 1) nama dari ENV
+        nm = _name_from_groups_env(key)
+        if nm:
+            if len(nm) > 32: nm = nm[:29] + "..."
+            _NAME_CACHE[key] = nm
+            titles.append(nm); continue
+
+        # 2) fallback: get_chat ke Telegram
+        try:
+            chat = await bot_check.get_chat(chat_id=cid)
+            nm = getattr(chat, "title", None) or f"@{getattr(chat, 'username', '')}".strip("@") or key
+        except Exception:
+            nm = key
+        if len(nm) > 32: nm = nm[:29] + "..."
+        _NAME_CACHE[key] = nm
+        titles.append(nm)
+    return titles
+
 @app.get("/api/gate/status")
 async def gate_status(uid: int = Query(..., description="Telegram user_id")):
     group_ids   = _split_env("REQUIRED_GROUP_IDS")
@@ -86,6 +126,10 @@ async def gate_status(uid: int = Query(..., description="Telegram user_id")):
         elif res == -1:
             any_cannot = True
 
+    # === judul untuk ditampilkan di Mini App ===
+    group_titles = await _resolve_titles_server(group_ids)
+    channel_titles = await _resolve_titles_server(channel_ids)
+
     # evaluasi pass
     if mode == "ALL":
         passed = (ok_count >= total_required) and not any_cannot
@@ -94,7 +138,6 @@ async def gate_status(uid: int = Query(..., description="Telegram user_id")):
         passed = (ok_count >= need) and not any_cannot
 
     if not passed:
-        # kirim juga link tombol agar WebApp bisa render halaman blokir
         detail = {
             "passed": False,
             "ok_count": ok_count,
@@ -103,10 +146,24 @@ async def gate_status(uid: int = Query(..., description="Telegram user_id")):
             "min_count": min_count,
             "group_invites": _split_env("REQUIRED_GROUP_INVITES"),
             "channel_invites": _split_env("REQUIRED_CHANNEL_INVITES"),
+            # NEW: kirim identitas + judul sejajar index
+            "group_ids": group_ids,
+            "channel_ids": channel_ids,
+            "group_titles": group_titles,
+            "channel_titles": channel_titles,
         }
         raise HTTPException(status_code=403, detail=detail)
 
-    return {"passed": True, "ok_count": ok_count, "total_required": total_required}
+    return {
+        "passed": True,
+        "ok_count": ok_count,
+        "total_required": total_required,
+        # Optional: juga kirim agar UI bisa tampilkan sesuatu bila perlu
+        "group_ids": group_ids,
+        "channel_ids": channel_ids,
+        "group_titles": group_titles,
+        "channel_titles": channel_titles,
+    }
 
 
 # Robust reader utk GROUP_IDS_JSON & PRICE_IDR
