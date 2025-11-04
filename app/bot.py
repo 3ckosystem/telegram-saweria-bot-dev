@@ -123,13 +123,21 @@ def _webapp_url_for(uid: int) -> str:
         return f"{WEBAPP_URL}{sep}uid={uid}&t={int(time.time())}"
     return f"{BASE_URL}/webapp/index.html?v=neon4&uid={uid}"
 
-async def _send_webapp_button(chat_id: int, uid: int, context: ContextTypes.DEFAULT_TYPE):
-    kb = [[KeyboardButton(text="🛍️ Katalog Grup VIP", web_app=WebAppInfo(url=_webapp_url_for(uid)))]]
+async def _send_webapp_hint(chat_id: int, uid: int, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Tidak lagi mengirim ReplyKeyboard. Hanya teks info dan REMOVE keyboard,
+    sehingga tinggal 1 tombol global 'Join VIP' di menu bar.
+    """
     await context.bot.send_message(
         chat_id=chat_id,
-        text="Silahkan lanjutkan pemesanan dan pembayaran dengan klik tombol 🛍️ Katalog Grup VIP di bawah.",
-        reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True)
+        text=(
+            "Silahkan buka Mini App lewat tombol **Join VIP** di menu bawah. "
+            "Jika tidak muncul, ketik /refresh."
+        ),
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode="Markdown"
     )
+
 
 # ===================== GATE: RUNTIME ENV LOADER =====================
 
@@ -338,8 +346,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     passed = _is_pass(ok_count, total_required, cfg)
 
     if passed and not any_cannot_check:
-        await _send_webapp_button(chat_id, uid, context)
+        await _send_webapp_hint(chat_id, uid, context)
         return
+
 
     # Belum lolos gate → sembunyikan keyboard "Buka Katalog" lama
     await context.bot.send_message(chat_id=chat_id, text="EnSEXlopedia Mini Apps BOT", reply_markup=ReplyKeyboardRemove())
@@ -376,7 +385,9 @@ async def on_recheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if passed and not any_cannot_check:
         await query.edit_message_text("✅ Terima kasih! Kamu sudah lolos verifikasi.")
-        await _send_webapp_button(chat_id, uid, context)
+        await _send_webapp_hint(chat_id, uid, context)
+        return
+
     else:
         # Pastikan keyboard lama hilang
         await context.bot.send_message(chat_id=chat_id, text="EnSEXlopedia Mini Apps BOT", reply_markup=ReplyKeyboardRemove())
