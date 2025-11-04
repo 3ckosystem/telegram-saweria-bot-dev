@@ -87,33 +87,34 @@ def _menu_webapp_url_for(uid: Optional[int] = None) -> str:
 
 async def install_global_menu_and_commands(bot, base_url: str):
     """
-    Pasang GLOBAL default chat menu untuk semua user (tidak per-chat).
-    Sekaligus refresh commands di beberapa scope untuk mengurangi efek cache klien.
-    Panggil fungsi ini sekali saat startup (setelah Application dibuat), contoh di main.py:
-        await install_global_menu_and_commands(app.bot, BASE_URL)
+    Pasang tombol menu global tipe WebApp (supaya Telegram inject initData/UID)
+    + refresh daftar commands biar cache klien bersih.
+    Panggil sekali saat startup: await install_global_menu_and_commands(app.bot, BASE_URL)
     """
-    # 1) Set global menu (tanpa chat_id) -> berlaku default untuk semua chat yang tidak punya override
+    webapp_url = f"{base_url.rstrip('/')}/webapp/"   # index.html auto
+
+    # 1) Set GLOBAL chat menu (berlaku untuk semua chat yang tidak punya override)
     await bot.set_chat_menu_button(
         chat_id=None,
-        menu_button=MenuButtonWebApp(web_app=WebAppInfo(url=_menu_webapp_url_for()))
+        menu_button=MenuButtonWebApp(
+            text="Join VIP",                         # label yang tampil di menu
+            web_app=WebAppInfo(url=webapp_url)      # URL Mini App (HTTPS & domain sudah di-BotFather → Domain)
+        ),
     )
 
-    # 2) Refresh commands di beberapa scope (default, private, group)
-    scopes = [BotCommandScopeDefault(), BotCommandScopeAllPrivateChats(), BotCommandScopeAllGroupChats()]
-    for sc in scopes:
+    # 2) Refresh commands di beberapa scope (optional tapi bagus untuk menghapus cache lama)
+    commands = [
+        BotCommand("start", "Buka katalog VIP"),
+        BotCommand("gate_debug", "Lihat konfigurasi gate"),
+        BotCommand("reset_keyboard", "Hapus keyboard lama"),
+    ]
+    for scope in (BotCommandScopeDefault(), BotCommandScopeAllPrivateChats(), BotCommandScopeAllGroupChats()):
         try:
-            await bot.delete_my_commands(scope=sc)
+            await bot.delete_my_commands(scope=scope)
         except Exception:
             pass
-        await bot.set_my_commands(
-            commands=[
-                BotCommand("start", "Mulai"),
-                BotCommand("order", "Buka Mini App"),
-                BotCommand("help", "Bantuan"),
-                BotCommand("refresh", "Perbaiki tombol (force refresh)"),
-            ],
-            scope=sc
-        )
+        await bot.set_my_commands(commands=commands, scope=scope)
+
 
 async def _reset_menu_to_default_for_chat(bot, chat_id: int):
     """
