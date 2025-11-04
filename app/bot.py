@@ -1,4 +1,4 @@
-# --- app/bot.py (membership gate + filtered buttons + title resolver) ---
+# --- app/bot.py (membership gate + filtered buttons + title resolver + menu button tools) ---
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -8,7 +8,8 @@ from typing import Any, Optional, List, Tuple, Dict
 
 from telegram import (
     Update, WebAppInfo, KeyboardButton, ReplyKeyboardMarkup,
-    InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
+    InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove,
+    MenuButtonWebApp, MenuButtonDefault
 )
 from telegram.ext import (
     Application, CommandHandler, ContextTypes, CallbackQueryHandler
@@ -23,6 +24,14 @@ if not BOT_TOKEN:
 
 BASE_URL = os.getenv("BASE_URL") or "http://127.0.0.1:8000"
 WEBAPP_URL = (os.getenv("WEBAPP_URL") or "").strip()
+
+# Konfigurasi label agar fleksibel dari ENV
+WEBAPP_BUTTON_TEXT = os.getenv("WEBAPP_BUTTON_TEXT", "Join VIP")
+WEBAPP_PROMPT_TEXT = os.getenv(
+    "WEBAPP_PROMPT_TEXT",
+    "Silakan lanjutkan pemesanan dan pembayaran dengan klik tombol di kiri bawah."
+)
+MENU_BUTTON_TEXT = os.getenv("MENU_BUTTON_TEXT", "Join VIP")
 
 # GROUPS untuk pemetaan id->nama (dipakai saat kirim undangan)
 GROUPS = json.loads(os.getenv("GROUP_IDS_JSON") or "[]")
@@ -63,7 +72,34 @@ async def reset_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/reset_keyboard -> paksa hapus tombol reply keyboard."""
     await update.message.reply_text("Keyboard dihapus.", reply_markup=ReplyKeyboardRemove())
 
-# ===================== UTIL: WEBAPP BUTTON =====================
+# ===================== UTIL: MENU BUTTON (ikon kiri bawah) =====================
+
+def _webapp_base_url() -> str:
+    return WEBAPP_URL or f"{BASE_URL}/webapp/index.html?v=neon4"
+
+async def set_global_menu_button(app: Application):
+    """
+    Set Menu Button WebApp untuk SEMUA chat (override setting BotFather).
+    Panggil di startup atau lewat /fix_menu.
+    """
+    await app.bot.set_chat_menu_button(
+        menu_button=MenuButtonWebApp(text=MENU_BUTTON_TEXT, web_app=WebAppInfo(url=_webapp_base_url()))
+    )
+
+async def clear_menu_button(app: Application):
+    """Hapus override agar kembali ke default/BotFather."""
+    await app.bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+
+# Command helpers
+async def fix_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await set_global_menu_button(context.application)
+    await update.message.reply_text("✅ Menu Button diperbarui.")
+
+async def clear_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await clear_menu_button(context.application)
+    await update.message.reply_text("✅ Menu Button dikembalikan ke default.")
+
+# ===================== UTIL: WEBAPP BUTTON (reply keyboard) =====================
 
 def _webapp_url_for(uid: int) -> str:
     if WEBAPP_URL:
@@ -72,10 +108,10 @@ def _webapp_url_for(uid: int) -> str:
     return f"{BASE_URL}/webapp/index.html?v=neon4&uid={uid}"
 
 async def _send_webapp_button(chat_id: int, uid: int, context: ContextTypes.DEFAULT_TYPE):
-    kb = [[KeyboardButton(text="Join VIP", web_app=WebAppInfo(url=_webapp_url_for(uid)))]]
+    kb = [[KeyboardButton(text=WEBAPP_BUTTON_TEXT, web_app=WebAppInfo(url=_webapp_url_for(uid)))]]
     await context.bot.send_message(
         chat_id=chat_id,
-        text="Silahkan lanjutkan pemesanan dan pembayaran dengan klik tombol 🛍️ Katalog Grup VIP di bawah.",
+        text=WEBAPP_PROMPT_TEXT,
         reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True)
     )
 
@@ -420,5 +456,7 @@ def register_handlers(app: Application):
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("gate_debug", gate_debug))
     app.add_handler(CommandHandler("reset_keyboard", reset_keyboard))  # opsional
+    app.add_handler(CommandHandler("fix_menu", fix_menu))              # set menu button ke Join VIP
+    app.add_handler(CommandHandler("clear_menu", clear_menu))          # hapus override menu
     app.add_handler(CallbackQueryHandler(on_recheck, pattern="^recheck_membership$"))
     app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^noop$"))
