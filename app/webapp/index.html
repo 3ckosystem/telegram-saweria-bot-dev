@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="id">
 <head>
+  <!-- WAJIB: shim resmi Telegram supaya window.Telegram.WebApp tersedia -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>EnSEXlopedia VIP Catalog</title>
@@ -58,7 +61,6 @@
     #gate .closechat{ background:#2b2b2b; color:#fff }
   </style>
 
-  <!-- komponen kartu, tombol, dll. (dipakai app.js saat sudah lolos gate) -->
   <link rel="stylesheet" href="/webapp/styles.css?v=neon7">
 </head>
 <body>
@@ -93,79 +95,82 @@
 
   <!-- ===== Gate-first boot ===== -->
   <script>
-    const tg = window.Telegram?.WebApp;
-    try { tg?.ready?.(); tg?.expand?.(); } catch {}
-
-    // >>>>> EDIT DI SINI: username bot kamu
+    // Username bot kamu (untuk tombol "Buka Chat")
     const BOT_USERNAME = "enSEXlopediaMinibot";
 
+    // DEBUG 3 detik di bagian atas – bantu lihat apa yang diterima klien
     (function(){
-    const tg = window.Telegram?.WebApp;
-    try { tg?.ready?.(); } catch {}
-    const info = {
-      platform: tg?.platform,
-      initData_len: (tg?.initData || "").length,
-      has_user: !!tg?.initDataUnsafe?.user,
-      chat_type: tg?.initDataUnsafe?.chat?.type || null,
-      ua: navigator.userAgent
-    };
-    console.log("[MiniApp DEBUG]", info, tg?.initDataUnsafe?.user || null);
-    // tampilkan 1 baris kecil biar kamu bisa lihat cepat
-    const bar = document.createElement('div');
-    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;font:12px monospace;padding:4px 8px;background:#1118;color:#fff';
-    bar.textContent = `platform=${info.platform} user=${info.has_user} chat=${info.chat_type} initData=${info.initData_len}`;
-    document.body.appendChild(bar);
-    setTimeout(()=>bar.remove(), 3000);
-  })();
-    function parseUidFromInitData(initDataStr){
-      if (!initDataStr) return null;
+      const tg = window.Telegram?.WebApp;
+      const info = {
+        platform: tg?.platform,
+        initData_len: (tg?.initData || "").length,
+        has_user: !!tg?.initDataUnsafe?.user,
+        chat_type: tg?.initDataUnsafe?.chat?.type || null,
+        ua: navigator.userAgent
+      };
+      try { tg?.ready?.(); } catch {}
+      console.log("[MiniApp DEBUG]", info, tg?.initDataUnsafe?.user || null);
+      const bar = document.createElement('div');
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;font:12px monospace;padding:4px 8px;background:#1118;color:#fff';
+      bar.textContent = `platform=${info.platform} user=${info.has_user} chat=${info.chat_type} initData=${info.initData_len}`;
+      document.body.appendChild(bar);
+      setTimeout(()=>bar.remove(), 3000);
+    })();
+
+    // ===== Helpers robust: tunggu WebApp siap + dapat UID =====
+    function parseUidFromInitDataStr(s){
+      if (!s) return null;
       try {
-        const usp = new URLSearchParams(initDataStr);
-        const userStr = usp.get('user');
-        if (!userStr) return null;
-        const o = JSON.parse(userStr);
-        const id = Number(o?.id);
+        const usp = new URLSearchParams(s);
+        const u = JSON.parse(usp.get('user') || 'null');
+        const id = Number(u?.id);
         return Number.isFinite(id) ? id : null;
       } catch { return null; }
     }
-    function resolveUID(){
-      const u1 = tg?.initDataUnsafe?.user?.id;
-      if (u1) return Number(u1);
-      const u2 = parseUidFromInitData(tg?.initData);
-      if (u2) return u2;
-      const q = new URLSearchParams(location.search).get('uid');
-      return q ? Number(q) : null;
-    }
-    async function waitForUID(maxMs=5000){
+
+    async function waitForWebAppReady(maxMs = 7000) {
       const t0 = Date.now();
-      while (Date.now()-t0 < maxMs){
-        const u = resolveUID();
-        if (u) return u;
-        await new Promise(r=>setTimeout(r,150));
+      while (Date.now() - t0 < maxMs) {
+        const tg = window.Telegram && Telegram.WebApp;
+        if (tg) {
+          try { tg.ready(); } catch {}
+          // tanda WebApp benar-benar diluncurkan
+          const signaled = /tgWebAppPlatform=/i.test(location.search);
+          const initLen  = (tg.initData || "").length;
+          const hasUser  = !!tg.initDataUnsafe?.user?.id;
+          if (signaled || initLen > 0 || hasUser) return tg;
+        }
+        await new Promise(r => setTimeout(r, 120));
       }
       return null;
     }
 
+    async function waitForUID(maxMs = 7000){
+      const tg = await waitForWebAppReady(maxMs);
+      if (!tg) return null;
+      const q = new URLSearchParams(location.search).get('uid');
+      return tg.initDataUnsafe?.user?.id
+          || parseUidFromInitDataStr(tg.initData)
+          || (q ? Number(q) : null);
+    }
+
+    // ====== Render helpers (gate overlay) ======
     function setGate(html){
       const p = document.getElementById('gate-panel');
       p.innerHTML = html;
       document.getElementById('gate').hidden = false;
       document.getElementById('app-root').hidden = true;
     }
-    function gateLoading(){
-      setGate(`<h3 style="margin:0 0 8px">Memuat verifikasi…</h3><p style="opacity:.8;margin:0">Harap tunggu sebentar.</p>`);
-    }
+    function gateLoading(){ setGate(`<h3 style="margin:0 0 8px">Memuat verifikasi…</h3><p style="opacity:.8;margin:0">Harap tunggu sebentar.</p>`); }
     function gateOpenPrivateChat(){
       setGate(`
         <h3 style="margin:0 0 8px">Buka di Chat Pribadi</h3>
         <p style="opacity:.8;margin:0 0 12px">Mini App ini harus dibuka dari DM bot agar UID kamu terbaca.</p>
-        <div class="row">
-          <button class="btn recheck" id="btnOpenDM">Buka Chat</button>
-        </div>
+        <div class="row"><button class="btn recheck" id="btnOpenDM">Buka Chat</button></div>
         <p style="opacity:.7;margin-top:10px">Jika sudah terbuka, tekan <b>Join VIP</b> di menu.</p>
       `);
       document.getElementById('btnOpenDM')?.addEventListener('click', () => {
-        try { tg?.openTelegramLink?.(`https://t.me/${BOT_USERNAME}?start=launch`); } catch {}
+        try { window.Telegram?.WebApp?.openTelegramLink?.(`https://t.me/${BOT_USERNAME}?start=launch`); } catch {}
       });
     }
     function gateNoUID(){
@@ -179,7 +184,7 @@
       `);
       document.getElementById('btnRetry')?.addEventListener('click', boot);
       document.getElementById('btnOpenDM2')?.addEventListener('click', () => {
-        try { tg?.openTelegramLink?.(`https://t.me/${BOT_USERNAME}?start=launch`); } catch {}
+        try { window.Telegram?.WebApp?.openTelegramLink?.(`https://t.me/${BOT_USERNAME}?start=launch`); } catch {}
       });
     }
     function gateNeedJoin(info){
@@ -199,7 +204,7 @@
         <p style="opacity:.8;margin-top:8px">Setelah join, kembali ke bot lalu tekan <b>Re-check</b>.</p>
       `);
       document.getElementById('btnRecheck')?.addEventListener('click', boot);
-      document.getElementById('btnOpenChat')?.addEventListener('click', ()=> { try{ tg?.close?.(); }catch{} });
+      document.getElementById('btnOpenChat')?.addEventListener('click', ()=> { try{ window.Telegram?.WebApp?.close?.(); }catch{} });
     }
     function gateNetworkError(){
       setGate(`
@@ -210,21 +215,23 @@
       document.getElementById('btnRetry')?.addEventListener('click', boot);
     }
 
+    // ====== BOOT ======
     async function boot(){
       gateLoading();
 
-      // 0) Jika diluncurkan dari grup/channel → minta buka DM
-      const chatType = tg?.initDataUnsafe?.chat?.type;
-      if (chatType && chatType !== "private") {
-        return gateOpenPrivateChat();
-      }
+      const tg = window.Telegram?.WebApp;
+      try { tg?.ready?.(); tg?.expand?.(); } catch {}
 
-      // 1) Pastikan UID tersedia (hanya private chat yang punya user)
-      const uid = await waitForUID(5000);
+      // If launched dari grup/channel → minta buka DM
+      const chatType = tg?.initDataUnsafe?.chat?.type;
+      if (chatType && chatType !== "private") return gateOpenPrivateChat();
+
+      // Pastikan UID tersedia
+      const uid = await waitForUID(7000);
       if (!uid) return gateNoUID();
       window.__UID__ = uid;
 
-      // 2) Cek gate ke server
+      // Cek gate ke server
       try{
         const res = await fetch(`/api/gate/status?uid=${encodeURIComponent(uid)}`, { cache:'no-store' });
         if (res.status === 403){
@@ -238,17 +245,17 @@
         return gateNetworkError();
       }
 
-      // 3) Lulus gate → load app
+      // Lulus gate → tampilkan app & load app.js
       document.getElementById('gate').hidden = true;
       document.getElementById('app-root').hidden = false;
+
       const s = document.createElement('script');
-      s.src = '/webapp/app.js?v=neon5';
+      s.src = '/webapp/app.js?v=neon6';
       s.defer = true;
       document.body.appendChild(s);
     }
+
     boot();
   </script>
-
-
 </body>
 </html>
