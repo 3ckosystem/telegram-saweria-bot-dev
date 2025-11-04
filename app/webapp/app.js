@@ -1,7 +1,5 @@
 // app/webapp/app.js
 const tg = window.Telegram?.WebApp;
-
-// Pastikan init WebApp siap dulu (beberapa klien butuh ready() dulu baru initDataUnsafe terisi)
 try { tg?.ready?.(); } catch {}
 try { tg?.expand?.(); } catch {}
 
@@ -9,8 +7,9 @@ let PRICE_PER_GROUP = 25000;
 let LOADED_GROUPS = [];
 
 // ====== Config truncate ======
-const MAX_DESC_CHARS = 120; // ubah sesuai kebutuhan
+const MAX_DESC_CHARS = 120;
 
+// ====== Helpers UI ======
 function showEmpty(message){
   const root = document.getElementById('list');
   root.innerHTML = `
@@ -20,6 +19,12 @@ function showEmpty(message){
       <a href="/api/config" target="_blank" style="display:inline-block;padding:10px 12px;border:1px solid #ffffff22;border-radius:10px;color:#fff;text-decoration:none">Lihat /api/config</a>
     </div>
   `;
+}
+
+// Normalisasi transform ImageKit agar tidak dobel '?'
+function withTransform(url, tr = 'w-600,fo-auto'){
+  if (!url) return url;
+  return url.includes('?') ? `${url}&tr=${tr}` : `${url}?tr=${tr}`;
 }
 
 // Truncate aman emoji + potong di batas kata
@@ -34,7 +39,6 @@ function truncateText(text, max = MAX_DESC_CHARS) {
     const safe = lastSpace > 40 ? partial.slice(0, lastSpace) : partial;
     return safe.replace(/[.,;:!\s]*$/,'') + '…';
   } catch {
-    // Fallback sederhana
     if (text.length <= max) return text;
     let t = text.slice(0, max);
     const lastSpace = t.lastIndexOf(' ');
@@ -44,9 +48,7 @@ function truncateText(text, max = MAX_DESC_CHARS) {
 }
 
 /* ---------------- UID Utilities ---------------- */
-
 function parseUidFromInitData(initDataStr) {
-  // tg.initData adalah querystring yang ditandatangani; field 'user' berisi JSON user
   if (!initDataStr) return null;
   try {
     const usp = new URLSearchParams(initDataStr);
@@ -59,31 +61,25 @@ function parseUidFromInitData(initDataStr) {
 }
 
 function getUserId() {
-  // 1) Sumber utama: initDataUnsafe.user.id (paling mudah)
   const u1 = tg?.initDataUnsafe?.user?.id;
   if (u1) return Number(u1);
-
-  // 2) Fallback: parse dari initData (string bertanda tangan)
   const u2 = parseUidFromInitData(tg?.initData);
   if (u2) return u2;
-
-  // 3) Fallback terakhir: query param ?uid=
   const qp = new URLSearchParams(window.location.search);
   const u3 = qp.get("uid");
   return u3 ? Number(u3) : null;
 }
 
-// Simpan ke global untuk debugging ringan
-window.__UID__ = getUserId();
+// Debug global
+window.__UID__ = window.__UID__ ?? getUserId();
 
-/* ------------------------------------------------ */
-
-document.addEventListener('DOMContentLoaded', async () => {
+/* ---------------- Boot (idempotent) ---------------- */
+async function initUI(){
   try {
     const r = await fetch('/api/config', { cache: 'no-store' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const cfg = await r.json();
-    console.log('[config]', cfg); // debug
+    console.log('[config]', cfg);
     PRICE_PER_GROUP = parseInt(cfg?.price_idr ?? '25000', 10) || 25000;
     LOADED_GROUPS = Array.isArray(cfg?.groups) ? cfg.groups : [];
     if (!LOADED_GROUPS.length) {
@@ -100,9 +96,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderNeonList(LOADED_GROUPS);
   syncTotalText();
   document.getElementById('pay')?.addEventListener('click', onPay);
-});
+}
 
+// PENTING: jalan meski app.js diload setelah DOMContentLoaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initUI, { once:true });
+} else {
+  initUI();
+}
 
+/* ---------------- Render List ---------------- */
 function renderNeonList(groups) {
   const root = document.getElementById('list');
   root.innerHTML = '';
@@ -112,7 +115,7 @@ function renderNeonList(groups) {
     const name = String(g.name ?? id);
     const desc = String(g.desc ?? '').trim();
     const longDesc = String(g.long_desc ?? desc).trim();
-    const img  = String(g.image ?? '').trim();
+    const img  = withTransform(String(g.image ?? '').trim());
 
     const card = document.createElement('article');
     card.className = 'card';
@@ -135,27 +138,22 @@ function renderNeonList(groups) {
 
     const p = document.createElement('div');
     p.className = 'desc';
-    // truncate untuk tampilan kartu
     p.textContent = truncateText(desc || 'Akses eksklusif grup pilihan.');
 
     const btn = document.createElement('button');
     btn.type = 'button';
-    // default: berwarna & rata kanan
     btn.className = 'btn-solid';
     btn.style.marginLeft = 'auto';
     btn.textContent = 'Pilih Grup';
 
-    // === BEHAVIOR ===
-    // 1) Klik tombol: toggle select (HANYA tombol)
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       toggleSelect(card);
     });
 
-    // 2) Klik area kartu selain tombol: buka modal dengan deskripsi FULL
     card.addEventListener('click', (e) => {
-      if (btn.contains(e.target)) return; // safety
+      if (btn.contains(e.target)) return;
       openDetailModal({ id, name, desc: longDesc || desc, image: img });
     });
 
@@ -163,13 +161,13 @@ function renderNeonList(groups) {
     card.append(check, thumb, meta);
     root.appendChild(card);
 
-    // set label + warna awal sesuai state
     updateButtonState(card, btn);
   });
 
   updateBadge();
 }
 
+/* ---------------- Interaksi ---------------- */
 function toggleSelect(card){
   card.classList.toggle('selected');
   const btn = card.querySelector('button');
@@ -180,12 +178,9 @@ function toggleSelect(card){
 
 function updateButtonState(card, btn){
   const selected = card.classList.contains('selected');
-  // ganti teks
   btn.textContent = selected ? 'Batal' : 'Pilih Grup';
-  // ganti gaya: berwarna saat BELUM dipilih, ghost saat SUDAH dipilih
   btn.classList.toggle('btn-solid', !selected);
   btn.classList.toggle('btn-ghost', selected);
-  // tetap rata kanan
   if (!btn.style.marginLeft) btn.style.marginLeft = 'auto';
 }
 
@@ -197,7 +192,7 @@ function openDetailModal(item){
   m.innerHTML = `
     <div class="sheet" id="sheet">
       <div class="hero" id="hero">
-        ${item.image ? `<img id="detail-img" src="${item.image}" alt="${escapeHtml(item.name)}">` : ''}
+        ${item.image ? `<img id="detail-img" src="${withTransform(item.image)}" alt="${escapeHtml(item.name)}">` : ''}
       </div>
       <div class="title" id="ttl">${escapeHtml(item.name)}</div>
       <div class="desc" id="dsc">${escapeHtml(item.desc || '')}</div>
@@ -216,31 +211,21 @@ function openDetailModal(item){
   const dsc   = document.getElementById('dsc');
   const btns  = document.getElementById('btns');
 
-  // Hitung tinggi hero agar: hero + teks + tombol ≈ 98vh (hampir fullscreen)
   const fitHero = () => {
     const vh = window.innerHeight;
-    // tinggi non-gambar (judul + deskripsi + tombol + padding sheet + gap)
     const styles = getComputedStyle(sheet);
     const pad = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
-    const gaps = 12 * 2; // gap kira2
+    const gaps = 12 * 2;
     const nonImg = ttl.offsetHeight + dsc.offsetHeight + btns.offsetHeight + pad + gaps;
 
-    // sisa aman untuk area gambar
     const target = Math.max(200, Math.min(vh * 0.98 - nonImg, vh * 0.92));
     hero.style.maxHeight = `${Math.floor(target)}px`;
 
-    // Jika masih banyak “pillarbox” (portrait sempit), boleh pakai cover agar lebar penuh
     if (img && img.naturalWidth && img.naturalHeight) {
       const portrait = img.naturalHeight > img.naturalWidth * 1.15;
       img.style.objectFit = portrait ? 'cover' : 'contain';
-      // Saat cover, pastikan tinggi persis memenuhi hero
-      if (portrait) {
-        img.style.height = '100%';
-        hero.style.height = `${Math.floor(target)}px`;
-      } else {
-        img.style.height = 'auto';
-        hero.style.height = 'auto';
-      }
+      if (portrait) { img.style.height = '100%'; hero.style.height = `${Math.floor(target)}px`; }
+      else { img.style.height = 'auto'; hero.style.height = 'auto'; }
     }
   };
 
@@ -287,7 +272,6 @@ function syncTotalText(){
   const t = getSelectedIds().length * PRICE_PER_GROUP;
   const payBtn = document.getElementById('pay');
   document.getElementById('total-text').textContent = formatRupiah(t);
-  // Disable jika tidak ada pilihan atau tidak ada UID
   const disableBecauseNoUID = !window.__UID__;
   const disabled = t <= 0 || disableBecauseNoUID;
   payBtn?.toggleAttribute('disabled', disabled);
