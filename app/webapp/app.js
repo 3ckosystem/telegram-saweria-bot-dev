@@ -11,6 +11,17 @@ let LOADED_GROUPS = [];
 // ====== Config truncate ======
 const MAX_DESC_CHARS = 120; // ubah sesuai kebutuhan
 
+function showEmpty(message){
+  const root = document.getElementById('list');
+  root.innerHTML = `
+    <div style="padding:20px;color:#cfc">
+      <div style="font-weight:800;font-size:18px;margin-bottom:6px">Tidak ada data katalog</div>
+      <div style="opacity:.85;margin-bottom:10px">${message}</div>
+      <a href="/api/config" target="_blank" style="display:inline-block;padding:10px 12px;border:1px solid #ffffff22;border-radius:10px;color:#fff;text-decoration:none">Lihat /api/config</a>
+    </div>
+  `;
+}
+
 // Truncate aman emoji + potong di batas kata
 function truncateText(text, max = MAX_DESC_CHARS) {
   if (!text) return "";
@@ -68,33 +79,29 @@ window.__UID__ = getUserId();
 /* ------------------------------------------------ */
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Tema (opsional): sinkronkan warna agar lebih native
-  try {
-    const th = tg?.themeParams || {};
-    if (th?.bg_color) document.documentElement.style.setProperty('--tg-bg', `#${th.bg_color}`);
-    if (th?.text_color) document.documentElement.style.setProperty('--tg-text', `#${th.text_color}`);
-    if (th?.button_color) document.documentElement.style.setProperty('--tg-btn', `#${th.button_color}`);
-    if (th?.button_text_color) document.documentElement.style.setProperty('--tg-btn-text', `#${th.button_text_color}`);
-  } catch {}
-
-  // Tampilkan hint jika UID belum tersedia, tapi JANGAN blokir UI
-  const banner = document.getElementById('uid-hint');
-  const uidNow = window.__UID__;
-  if (!uidNow && banner) {
-    banner.hidden = false; // pastikan ada elemen <div id="uid-hint" hidden>…</div> di HTML
-    banner.innerText = "Tidak ada UID Telegram. Buka via bot atau tekan /start lagi.";
-  }
-
   try {
     const r = await fetch('/api/config', { cache: 'no-store' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const cfg = await r.json();
+    console.log('[config]', cfg); // debug
     PRICE_PER_GROUP = parseInt(cfg?.price_idr ?? '25000', 10) || 25000;
     LOADED_GROUPS = Array.isArray(cfg?.groups) ? cfg.groups : [];
-  } catch {}
+    if (!LOADED_GROUPS.length) {
+      showEmpty('Server mengembalikan <code>groups: []</code>. Cek <code>GROUP_IDS_JSON</code> di Railway.');
+      syncTotalText();
+      return;
+    }
+  } catch (e) {
+    console.error('Fetch /api/config error:', e);
+    showEmpty('Gagal memuat konfigurasi dari server.');
+    return;
+  }
+
   renderNeonList(LOADED_GROUPS);
   syncTotalText();
   document.getElementById('pay')?.addEventListener('click', onPay);
 });
+
 
 function renderNeonList(groups) {
   const root = document.getElementById('list');

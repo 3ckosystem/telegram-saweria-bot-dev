@@ -98,25 +98,6 @@
     // Username bot kamu (untuk tombol "Buka Chat")
     const BOT_USERNAME = "enSEXlopediaMinibot";
 
-    // DEBUG 3 detik di bagian atas – bantu lihat apa yang diterima klien
-    (function(){
-      const tg = window.Telegram?.WebApp;
-      const info = {
-        platform: tg?.platform,
-        initData_len: (tg?.initData || "").length,
-        has_user: !!tg?.initDataUnsafe?.user,
-        chat_type: tg?.initDataUnsafe?.chat?.type || null,
-        ua: navigator.userAgent
-      };
-      try { tg?.ready?.(); } catch {}
-      console.log("[MiniApp DEBUG]", info, tg?.initDataUnsafe?.user || null);
-      const bar = document.createElement('div');
-      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;font:12px monospace;padding:4px 8px;background:#1118;color:#fff';
-      bar.textContent = `platform=${info.platform} user=${info.has_user} chat=${info.chat_type} initData=${info.initData_len}`;
-      document.body.appendChild(bar);
-      setTimeout(()=>bar.remove(), 3000);
-    })();
-
     // ===== Helpers robust: tunggu WebApp siap + dapat UID =====
     function parseUidFromInitDataStr(s){
       if (!s) return null;
@@ -250,9 +231,25 @@
       document.getElementById('app-root').hidden = false;
 
       const s = document.createElement('script');
-      s.src = '/webapp/app.js?v=neon6';
+      // ganti versi query biar tembus cache; boleh juga tanpa query
+      s.src = '/webapp/app.js?v=neon8';
       s.defer = true;
+      s.onerror = () => {
+        // tampilkan info kalau file JS nggak ketemu/failed
+        const p = document.getElementById('gate-panel');
+        p.innerHTML = `
+          <h3 style="margin:0 0 8px">Gagal memuat UI</h3>
+          <p style="opacity:.8;margin:0 0 12px">File <code>app.js</code> tidak bisa dimuat.</p>
+          <div class="row">
+            <a class="btn recheck" href="/webapp/app.js">Buka app.js</a>
+            <button class="btn closechat" onclick="location.reload()">Muat Ulang</button>
+          </div>
+        `;
+        document.getElementById('gate').hidden = false;
+        document.getElementById('app-root').hidden = true;
+      };
       document.body.appendChild(s);
+
     }
 
     boot();
