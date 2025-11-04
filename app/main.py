@@ -61,8 +61,54 @@ async def _is_member_server(user_id: int, chat_id: str) -> int:
     except Exception:
         return -1
 
-# -------------------- Robust reader utk GROUP_IDS_JSON & PRICE_IDR --------------------
+@app.get("/api/gate/status")
+async def gate_status(uid: int = Query(..., description="Telegram user_id")):
+    group_ids   = _split_env("REQUIRED_GROUP_IDS")
+    channel_ids = _split_env("REQUIRED_CHANNEL_IDS")
+    mode        = (os.getenv("REQUIRED_MODE", "ALL") or "ALL").upper()
+    try:
+        min_count = int(os.getenv("REQUIRED_MIN_COUNT", "1"))
+    except:
+        min_count = 1
 
+    total_required = len(group_ids) + len(channel_ids)
+    if total_required == 0:
+        return {"passed": True, "ok_count": 0, "total_required": 0}
+
+    ok_count = 0
+    any_cannot = False
+
+    for cid in group_ids + channel_ids:
+        res = await _is_member_server(uid, cid)
+        if res == 1:
+            ok_count += 1
+        elif res == -1:
+            any_cannot = True
+
+    # evaluasi pass
+    if mode == "ALL":
+        passed = (ok_count >= total_required) and not any_cannot
+    else:
+        need = min(min_count, total_required) if total_required else 0
+        passed = (ok_count >= need) and not any_cannot
+
+    if not passed:
+        # kirim juga link tombol agar WebApp bisa render halaman blokir
+        detail = {
+            "passed": False,
+            "ok_count": ok_count,
+            "total_required": total_required,
+            "mode": mode,
+            "min_count": min_count,
+            "group_invites": _split_env("REQUIRED_GROUP_INVITES"),
+            "channel_invites": _split_env("REQUIRED_CHANNEL_INVITES"),
+        }
+        raise HTTPException(status_code=403, detail=detail)
+
+    return {"passed": True, "ok_count": ok_count, "total_required": total_required}
+
+
+# Robust reader utk GROUP_IDS_JSON & PRICE_IDR
 def _read_env_json(name: str, default_text: str = "[]"):
     raw = os.environ.get(name, default_text)
     if raw is None:
@@ -124,43 +170,10 @@ def _parse_groups_from_any(data):
                     groups.append({"id": gid, "name": gid, "initial": "", "desc": "", "image": "", "image_folder": ""})
     return groups
 
+
 # BACA ENV SEKARANG (module scope)
 GROUPS_DATA = _read_env_json("GROUP_IDS_JSON", "[]")
 GROUPS = _parse_groups_from_any(GROUPS_DATA)
-
-# Mapping id -> nama grup (untuk judul gate di Mini App)
-GROUP_NAME_BY_ID = {}
-try:
-    for g in GROUPS:
-        gid = str(g.get("id") or "").strip()
-        nm  = str(g.get("name") or g.get("label") or gid).strip()
-        if gid:
-            GROUP_NAME_BY_ID[gid] = nm
-except Exception:
-    pass
-
-# (Opsional) mapping nama channel dari CHANNEL_IDS_JSON bila kamu sediakan
-CHANNELS_DATA = _read_env_json("CHANNEL_IDS_JSON", "[]")
-CHANNELS = _parse_groups_from_any(CHANNELS_DATA)  # reuse parser: id/name/desc
-CHANNEL_NAME_BY_ID = {}
-try:
-    for c in CHANNELS:
-        cid = str(c.get("id") or "").strip()
-        nm  = str(c.get("name") or c.get("label") or cid).strip()
-        if cid:
-            CHANNEL_NAME_BY_ID[cid] = nm
-except Exception:
-    pass
-
-def _titles_for_ids(ids: List[str], mapping: dict, fallback_label: str) -> List[str]:
-    out: List[str] = []
-    for i in ids:
-        key = str(i).strip()
-        title = mapping.get(key) or key or fallback_label
-        if len(title) > 32:
-            title = title[:29] + "..."
-        out.append(title)
-    return out
 
 try:
     PRICE_IDR = int(os.environ.get("PRICE_IDR", "25000"))
@@ -223,6 +236,8 @@ async def _imagekit_list_files_by_path(path: str) -> List[str]:
         if ent and ent.get("items"):
             return ent["items"]
         return []
+
+
 
 async def _scrape_folder_for_images(url: str) -> List[str]:
     """
@@ -391,56 +406,6 @@ async def get_config():
         return {"price_idr": PRICE_IDR, "groups": deepcopy(GROUPS)}
 
 
-# -------------------- API: GATE STATUS (Mini App) --------------------
-@app.get("/api/gate/status")
-async def gate_status(uid: int = Query(..., description="Telegram user_id")):
-    group_ids   = _split_env("REQUIRED_GROUP_IDS")
-    channel_ids = _split_env("REQUIRED_CHANNEL_IDS")
-    mode        = (os.getenv("REQUIRED_MODE", "ALL") or "ALL").upper()
-    try:
-        min_count = int(os.getenv("REQUIRED_MIN_COUNT", "1"))
-    except:
-        min_count = 1
-
-    total_required = len(group_ids) + len(channel_ids)
-    if total_required == 0:
-        # Tidak ada syarat → langsung pass
-        return {"passed": True, "ok_count": 0, "total_required": 0}
-
-    ok_count = 0
-    any_cannot = False
-
-    for cid in group_ids + channel_ids:
-        res = await _is_member_server(uid, cid)
-        if res == 1:
-            ok_count += 1
-        elif res == -1:
-            any_cannot = True
-
-    # evaluasi pass
-    if mode == "ALL":
-        passed = (ok_count >= total_required) and not any_cannot
-    else:
-        need = min(min_count, total_required) if total_required else 0
-        passed = (ok_count >= need) and not any_cannot
-
-    if not passed:
-        # kirim juga link & judul agar WebApp bisa render halaman blokir seperti di bot
-        detail = {
-            "passed": False,
-            "ok_count": ok_count,
-            "total_required": total_required,
-            "mode": mode,
-            "min_count": min_count,
-            "group_invites": _split_env("REQUIRED_GROUP_INVITES"),
-            "channel_invites": _split_env("REQUIRED_CHANNEL_INVITES"),
-            # >>> judul-judul sejajar dengan ID yang diwajibkan
-            "group_titles": _titles_for_ids(group_ids, GROUP_NAME_BY_ID, "Group"),
-            "channel_titles": _titles_for_ids(channel_ids, CHANNEL_NAME_BY_ID, "Channel"),
-        }
-        raise HTTPException(status_code=403, detail=detail)
-
-    return {"passed": True, "ok_count": ok_count, "total_required": total_required}
 
 
 # ------------- API: STATUS & QR IMAGE -------------
