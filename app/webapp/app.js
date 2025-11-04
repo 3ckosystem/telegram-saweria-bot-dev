@@ -277,6 +277,37 @@ function syncTotalText(){
   payBtn?.toggleAttribute('disabled', disabled);
 }
 
+let __qrCountdownTimer = null;
+
+function startQrCountdown(maxSeconds = 180) {
+  const msgEl = document.getElementById('qrMsg');
+  const progEl = document.getElementById('qrProg');
+
+  let left = Math.max(0, maxSeconds);
+  const tick = () => {
+    if (!msgEl) return stopQrCountdown();
+    const mm = String(Math.floor(left / 60)).padStart(2, '0');
+    const ss = String(left % 60).padStart(2, '0');
+    msgEl.textContent = `Mohon tunggu sebentar (${mm}:${ss})`;
+    if (progEl) {
+      const pct = ((maxSeconds - left) / maxSeconds) * 100;
+      progEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+    }
+    if (left <= 0) return stopQrCountdown();
+    left -= 1;
+  };
+  stopQrCountdown();
+  __qrCountdownTimer = setInterval(tick, 1000);
+  tick(); // render pertama
+}
+
+function stopQrCountdown() {
+  if (__qrCountdownTimer) {
+    clearInterval(__qrCountdownTimer);
+    __qrCountdownTimer = null;
+  }
+}
+
 async function onPay(){
   const selected = getSelectedIds();
   const amount = selected.length * PRICE_PER_GROUP;
@@ -301,14 +332,36 @@ async function onPay(){
   }
 
   const qrPngUrl = `${window.location.origin}/api/qr/${inv.invoice_id}.png?amount=${amount}&t=${Date.now()}`;
+
   showQRModal(`
-    <div><b>Pembayaran GoPay</b></div>
-    <div style="margin:8px 0 12px; opacity:.85">QRIS sedang dimuat…</div>
-    <img alt="QR" src="${qrPngUrl}">
-    <button class="close" id="closeModal">Tutup</button>
+    <div style="text-align:center">
+      <div style="font-weight:900;font-size:20px;margin-bottom:6px">Meminta Instruksi Pembayaran</div>
+      <div id="qrMsg" style="margin:6px 0 12px; opacity:.85">Mohon tunggu sebentar (maks 3 menit) …</div>
+      <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px">
+        <div id="qrProg" style="height:100%;width:0%;background:#fff3;border-radius:6px"></div>
+      </div>
+      <img id="qrImg" alt="QR" src="${qrPngUrl}" style="max-width:100%;display:block;margin:0 auto;border-radius:10px;border:1px solid #ffffff1a">
+      <button class="close" id="closeModal">Tutup</button>
+    </div>
   `);
   document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
 
+  // mulai countdown 3 menit
+  startQrCountdown(180);
+
+  // jika QR sudah tampil, hentikan countdown & ubah pesan
+  const qrImg = document.getElementById('qrImg');
+  if (qrImg) {
+    const onReady = () => {
+      stopQrCountdown();
+      const msgEl = document.getElementById('qrMsg');
+      if (msgEl) msgEl.textContent = 'Silakan scan QRIS dengan GoPay/QRIS Anda.';
+    };
+    if (qrImg.complete) onReady();
+    else qrImg.addEventListener('load', onReady, { once: true });
+  }
+  
+  
   const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
   let t = setInterval(async ()=>{
     try{
@@ -325,8 +378,11 @@ function showQRModal(html){
   m.innerHTML = `<div>${html}</div>`;
   m.hidden = false;
 }
+
 function hideQRModal(){
+  stopQrCountdown();           // <<< tambahkan baris ini
   const m = document.getElementById('qr');
   m.hidden = true;
   m.innerHTML = '';
 }
+
