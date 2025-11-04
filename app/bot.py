@@ -1,4 +1,4 @@
-# --- app/bot.py (membership gate + filtered buttons + title resolver) ---
+# --- app/bot.py (membership gate + filtered buttons + title resolver + global menu fix) ---
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -8,8 +8,15 @@ from typing import Any, Optional, List, Tuple, Dict
 
 from telegram import (
     Update, WebAppInfo, KeyboardButton, ReplyKeyboardMarkup,
-    InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
+    InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove,
+    MenuButtonWebApp, MenuButtonDefault, BotCommand
 )
+# Catatan: di PTB v20, kelas scope bisa berada di telegram atau telegram.constants.
+try:
+    from telegram import BotCommandScopeDefault, BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats
+except Exception:
+    from telegram.constants import BotCommandScopeDefault, BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats
+
 from telegram.ext import (
     Application, CommandHandler, ContextTypes, CallbackQueryHandler
 )
@@ -39,6 +46,7 @@ except Exception:
 ALLOWED_STATUSES = {"member", "administrator", "creator"}
 
 def build_app() -> Application:
+    # NOTE: menu global dipasang via install_global_menu_and_commands(...) setelah app dibuat (di main.py)
     return Application.builder().token(BOT_TOKEN).build()
 
 # ===================== DEBUG HELPERS =====================
@@ -63,7 +71,61 @@ async def reset_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/reset_keyboard -> paksa hapus tombol reply keyboard."""
     await update.message.reply_text("Keyboard dihapus.", reply_markup=ReplyKeyboardRemove())
 
-# ===================== UTIL: WEBAPP BUTTON =====================
+# ===================== GLOBAL MENU & COMMANDS =====================
+
+def _menu_webapp_url_for(uid: Optional[int] = None) -> str:
+    # URL untuk tombol Chat Menu (global). Boleh diberi uid agar stateful.
+    if WEBAPP_URL:
+        if uid is None:
+            return WEBAPP_URL
+        sep = "&" if ("?" in WEBAPP_URL) else "?"
+        return f"{WEBAPP_URL}{sep}uid={uid}&t={int(time.time())}"
+    # fallback: serve dari BASE_URL
+    if uid is None:
+        return f"{BASE_URL}/webapp/"
+    return f"{BASE_URL}/webapp/?uid={uid}&t={int(time.time())}"
+
+async def install_global_menu_and_commands(bot, base_url: str):
+    """
+    Pasang GLOBAL default chat menu untuk semua user (tidak per-chat).
+    Sekaligus refresh commands di beberapa scope untuk mengurangi efek cache klien.
+    Panggil fungsi ini sekali saat startup (setelah Application dibuat), contoh di main.py:
+        await install_global_menu_and_commands(app.bot, BASE_URL)
+    """
+    # 1) Set global menu (tanpa chat_id) -> berlaku default untuk semua chat yang tidak punya override
+    await bot.set_chat_menu_button(
+        chat_id=None,
+        menu_button=MenuButtonWebApp(web_app=WebAppInfo(url=_menu_webapp_url_for()))
+    )
+
+    # 2) Refresh commands di beberapa scope (default, private, group)
+    scopes = [BotCommandScopeDefault(), BotCommandScopeAllPrivateChats(), BotCommandScopeAllGroupChats()]
+    for sc in scopes:
+        try:
+            await bot.delete_my_commands(scope=sc)
+        except Exception:
+            pass
+        await bot.set_my_commands(
+            commands=[
+                BotCommand("start", "Mulai"),
+                BotCommand("order", "Buka Mini App"),
+                BotCommand("help", "Bantuan"),
+                BotCommand("refresh", "Perbaiki tombol (force refresh)"),
+            ],
+            scope=sc
+        )
+
+async def _reset_menu_to_default_for_chat(bot, chat_id: int):
+    """
+    Hapus override menu untuk suatu chat agar mengikuti GLOBAL default.
+    Dipanggil saat /start dan /refresh.
+    """
+    try:
+        await bot.set_chat_menu_button(chat_id=chat_id, menu_button=MenuButtonDefault())
+    except Exception:
+        pass
+
+# ===================== UTIL: WEBAPP BUTTON (ReplyKeyboard) =====================
 
 def _webapp_url_for(uid: int) -> str:
     if WEBAPP_URL:
@@ -270,6 +332,11 @@ def _is_pass(ok_count: int, total_required: int, cfg) -> bool:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     chat_id = update.effective_chat.id
+
+    # --- KUNCI PERBAIKAN CACHE MENU ---
+    # Reset override menu per-chat agar mengikuti GLOBAL default
+    await _reset_menu_to_default_for_chat(context.bot, chat_id)
+
     cfg = _load_gate_env()
 
     # Jika tak ada syarat → langsung buka Mini App
@@ -339,6 +406,19 @@ async def on_recheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="Klik tombol di bawah untuk join/re-check:",
             reply_markup=_gate_keyboard_filtered(cfg, mem_groups, mem_channels, group_titles, channel_titles)
         )
+
+# Tambahan: command untuk force refresh menu (kalau klien masih nge-cache)
+async def cmd_refresh(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    await _reset_menu_to_default_for_chat(context.bot, chat_id)
+    await update.message.reply_text(
+        "Tombol menu sudah disegarkan. Jika belum berubah, tutup chat ini lalu buka lagi, atau tarik ke bawah untuk reload."
+    )
+
+# Opsional: debug tipe menu yang aktif
+async def cmd_debug_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mb = await context.bot.get_chat_menu_button(chat_id=update.effective_chat.id)
+    await update.message.reply_text(f"MenuButton saat ini: {type(mb).__name__}")
 
 # ===================== INVITE LINK (sesuai versi stabil) =====================
 
@@ -418,6 +498,8 @@ async def send_invite_link(app: Application, user_id: int, target_group_id):
 
 def register_handlers(app: Application):
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("refresh", cmd_refresh))
+    app.add_handler(CommandHandler("debug_menu", cmd_debug_menu))
     app.add_handler(CommandHandler("gate_debug", gate_debug))
     app.add_handler(CommandHandler("reset_keyboard", reset_keyboard))  # opsional
     app.add_handler(CallbackQueryHandler(on_recheck, pattern="^recheck_membership$"))

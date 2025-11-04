@@ -14,7 +14,8 @@ from telegram import Update, Bot
 from telegram.ext import Application
 from telegram.error import Forbidden, BadRequest
 
-from .bot import build_app, register_handlers, send_invite_link
+# ⬇️ tambahkan import install_global_menu_and_commands
+from .bot import build_app, register_handlers, send_invite_link, install_global_menu_and_commands
 from . import payments, storage
 from copy import deepcopy
 
@@ -282,7 +283,6 @@ async def _pick_random_image_from_folder(folder: str) -> Optional[str]:
 
 
 # ------------- APP & BOT -------------
-# app = FastAPI()
 storage.init_db()
 
 bot_app: Application = build_app()
@@ -657,6 +657,13 @@ async def debug_saweria_qr_hd(invoice_id: str, amount: int = 25000):
 @app.on_event("startup")
 async def on_start():
     await bot_app.initialize()
+
+    # ⬇️ pasang GLOBAL chat menu & refresh commands (fix tombol beda tiap user)
+    try:
+        await install_global_menu_and_commands(bot_app.bot, BASE_URL)
+    except Exception as e:
+        print("[startup] install_global_menu_and_commands failed:", e)
+
     if BASE_URL.startswith("https://"):
         await bot_app.bot.set_webhook(
             url=f"{BASE_URL}/telegram/webhook",
