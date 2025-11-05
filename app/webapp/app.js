@@ -390,7 +390,7 @@ async function onPay(){
   // — modal awal (judul + daftar pesanan + countdown menunggu QR) —
   showQRModal(`
     <div style="text-align:center">
-      <div style="font-weight:900;font-size:20px;margin-bottom:6px">Meminta Instruksi Pembayaran</div>
+      <div style="font-weight:900;font-size:20px;margin-bottom:6px">Pembayaran Grup VIP</div>
       ${renderSelectedBadges(selectedNames)}
       <div id="qrMsg" style="margin:6px 0 12px; opacity:.85">Mohon tunggu sebentar (maks 3 menit) …</div>
       <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px">
