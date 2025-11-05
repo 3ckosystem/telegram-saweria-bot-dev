@@ -483,16 +483,27 @@ function getSelectedGroupNames(selectedIds) {
   return (selectedIds || getSelectedIds()).map(id => map.get(String(id))).filter(Boolean);
 }
 
-// Render pill list kecil seperti invoice
-function renderSelectedBadges(names) {
+// Render pill list kecil menyamping (chip mini)
+function renderSelectedBadges(names){
   if (!names?.length) return "";
   return `
-    <div style="margin:10px 0 6px;display:flex;flex-direction:column;gap:8px">
+    <div style="
+      display:flex; flex-wrap:wrap; gap:6px; justify-content:center;
+      margin:6px 0 8px
+    ">
       ${names.map(n => `
-        <div style="display:inline-flex;align-items:center;gap:8px;
-                    padding:8px 12px;border-radius:999px;
-                    background:#1a1a1a;border:1px solid #ffffff1a;
-                    font-weight:700">${escapeHtml(n)}</div>`).join("")}
+        <span style="
+          display:inline-flex; align-items:center;
+          padding:6px 8px; border-radius:999px;
+          background:#141414; border:1px solid #ffffff22; color:#fff;
+          font-size:11px; line-height:1; font-weight:700; letter-spacing:.2px;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+          max-width:calc(50% - 6px) /* biar tetap menyamping & rapi saat nama panjang */
+        ">
+          ${escapeHtml(n)}
+        </span>
+      `).join("")}
     </div>
   `;
 }
+
