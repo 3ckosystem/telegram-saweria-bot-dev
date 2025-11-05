@@ -477,7 +477,6 @@ async def get_config():
 
 # ------------- API: STATUS & QR IMAGE -------------
 _DATA_URL_RE = re.compile(r"^data:(image/[^;]+);base64,(.+)$")
-PNG_MIN_BYTES = 5_000  # sanity check agar tidak menerima file kecil/invalid
 
 @app.get("/api/invoice/{invoice_id}/status")
 async def invoice_status(invoice_id: str):
@@ -499,7 +498,7 @@ async def invoice_status(invoice_id: str):
     return st
 
 
-# --- STRICT QR ONLY endpoint ---
+# --- QR endpoint (disederhanakan; message dipaksa INV:<invoice_id> di scraper) ---
 @app.get("/api/qr/{raw_id}")
 async def qr_png(
     raw_id: str,
@@ -520,26 +519,20 @@ async def qr_png(
     if not isinstance(amt, int) or amt <= 0:
         raise HTTPException(400, "Invalid amount")
 
-    # 4) Jika sudah ada payload di DB → kirim hanya jika PNG valid
+    # 4) Jika sudah ada payload di DB → langsung kirim
     payload = inv.get("qris_payload")
     if payload:
         m = _DATA_URL_RE.match(payload)
         if not m:
-            raise HTTPException(404, "QR not available")
+            raise HTTPException(400, "Bad image payload")
         mime, b64 = m.groups()
-        if mime.lower() != "image/png":
-            # STRICT: tolak non-PNG (mis. screenshot)
-            raise HTTPException(404, "QR not available")
-        data = base64.b64decode(b64)
-        if not data or len(data) < PNG_MIN_BYTES:
-            raise HTTPException(404, "QR not available")
         return Response(
-            content=data,
-            media_type="image/png",
+            content=base64.b64decode(b64),
+            media_type=mime,
             headers={"Cache-Control": "public, max-age=300"},
         )
 
-    # 5) Opsional: tunggu background writer (tetap ketat ke PNG)
+    # 5) Tunggu sebentar background (opsional)
     if wait and isinstance(wait, int) and wait > 0:
         for _ in range(min(wait, 8)):
             await asyncio.sleep(1)
@@ -550,24 +543,18 @@ async def qr_png(
                 if not m:
                     break
                 mime, b64 = m.groups()
-                if mime.lower() != "image/png":
-                    break
-                data = base64.b64decode(b64)
-                if not data or len(data) < PNG_MIN_BYTES:
-                    break
                 return Response(
-                    content=data,
-                    media_type="image/png",
+                    content=base64.b64decode(b64),
+                    media_type=mime,
                     headers={"Cache-Control": "public, max-age=300"},
                 )
 
-    # 6) Generate on-demand (HD) + cache ke DB — STRICT: jika gagal → 404
+    # 6) Generate on-demand (HD) + cache ke DB
     try:
         png = await fetch_gopay_qr_hd_png(invoice_id=invoice_id, amount=amt)
-        if not png or len(png) < PNG_MIN_BYTES:
-            raise HTTPException(404, "QR not available")
+        if not png:
+            return Response(content=b"QR not found", status_code=502)
 
-        # cache ke DB sebagai data URL PNG
         try:
             b64 = base64.b64encode(png).decode()
             storage.update_qris_payload(invoice_id, f"data:image/png;base64,{b64}")
@@ -579,13 +566,9 @@ async def qr_png(
             media_type="image/png",
             headers={"Cache-Control": "public, max-age=300"},
         )
-    except HTTPException:
-        # biarkan 404 melewati
-        raise
     except Exception as e:
         print("[qr_png] error:", e)
-        # Untuk UX: pakai 404 → frontend treat as gagal & redirect
-        raise HTTPException(404, "QR not available")
+        return Response(content=b"Error", status_code=500)
 
 
 # ------------- SAWERIA WEBHOOK -------------
