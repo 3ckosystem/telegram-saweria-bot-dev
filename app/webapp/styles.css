@@ -110,34 +110,3 @@
 
 /* tombol di kartu tetap klik-able */
 .btn-outline, .cta { cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
-
-.check { cursor: pointer; }
-.card.selected .check { opacity: 1; } /* kalau kamu pakai efek opacity */
-
-.select-all-bar{
-  display:flex; align-items:center; gap:10px;
-  padding:8px 16px 0; color:#ddd; font-weight:600;
-}
-.select-all-toggle{
-  display:inline-grid; place-items:center; width:22px; height:22px; border-radius:6px;
-  border:1.5px solid #ffffff33; background:#111; cursor:pointer; user-select:none;
-}
-.select-all-toggle[aria-checked="true"]{ background:#ff2345; border-color:#ff2345; }
-.select-all-toggle[aria-checked="mixed"]{ background:#3a3a3a; }
-.select-all-label{ font-size:14px; }
-.select-all-count{ margin-left:6px; opacity:.7; font-size:13px; }
-
-/* ==== Hover Zoom Cursor pada Foto ==== */
-.thumb {
-  cursor: zoom-in;
-  transition: transform .25s ease;
-}
-
-.card.selected .thumb {
-  cursor: zoom-out;
-}
-
-/* Optional: kasih sedikit efek zoom visual biar lebih responsif */
-.thumb:hover {
-  transform: scale(1.03);
-}
