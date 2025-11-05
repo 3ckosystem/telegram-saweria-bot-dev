@@ -196,17 +196,22 @@ function renderNeonList(groups) {
   });
 
   updateBadge();
+  ensureSelectAllUI();
+  refreshSelectAllUI();
+
 }
 
 
 /* ---------------- Interaksi ---------------- */
-function toggleSelect(card) {
+function toggleSelect(card){
   card.classList.toggle('selected');
   const btn = card.querySelector('button');
   if (btn) updateButtonState(card, btn);
   syncTotalText();
   updateBadge();
+  refreshSelectAllUI();   // << tambah baris ini
 }
+
 
 function updateButtonState(card, btn) {
   const selected = card.classList.contains('selected');
@@ -293,6 +298,74 @@ function updateBadge() {
   const b = document.getElementById('cartBadge');
   if (n > 0) { b.hidden = false; b.textContent = String(n); }
   else b.hidden = true;
+}
+
+function getCards(){ return [...document.querySelectorAll('.card')]; }
+
+function refreshSelectAllUI(){
+  const bar = document.getElementById('selectAllBar');
+  if (!bar) return;
+  const cards = getCards();
+  const total = cards.length;
+  const selected = cards.filter(c => c.classList.contains('selected')).length;
+
+  const btn = document.getElementById('selectAllBtn');
+  const count = document.getElementById('selectAllCount');
+
+  // state: none / mixed / all
+  let state = 'false';
+  if (selected === 0) state = 'false';
+  else if (selected === total) state = 'true';
+  else state = 'mixed';
+
+  btn.setAttribute('aria-checked', state);
+  count.textContent = `(${selected}/${total})`;
+}
+
+function setAllSelected(flag){
+  const cards = getCards();
+  cards.forEach(card => {
+    const already = card.classList.contains('selected');
+    if (flag && !already) card.classList.add('selected');
+    if (!flag && already) card.classList.remove('selected');
+    // perbarui tombol di dalam kartu
+    const btn = card.querySelector('button');
+    if (btn) updateButtonState(card, btn);
+  });
+  updateBadge();
+  syncTotalText();
+  refreshSelectAllUI();
+}
+
+function ensureSelectAllUI(){
+  if (document.getElementById('selectAllBar')) return;
+
+  const headerEl = document.querySelector('.header');
+  const bar = document.createElement('div');
+  bar.className = 'select-all-bar';
+  bar.id = 'selectAllBar';
+  bar.innerHTML = `
+    <div id="selectAllBtn" class="select-all-toggle" role="checkbox" aria-checked="false" aria-label="Pilih semua">
+      <svg viewBox="0 0 24 24" width="16" height="16">
+        <path fill="#fff" d="M9,16.2 4.8,12 3.4,13.4 9,19 21,7 19.6,5.6"/>
+      </svg>
+    </div>
+    <div class="select-all-label">Pilih semua <span id="selectAllCount" class="select-all-count"></span></div>
+  `;
+  headerEl?.after(bar);
+
+  const toggle = document.getElementById('selectAllBtn');
+  const onToggle = (e) => {
+    e.preventDefault();
+    const state = toggle.getAttribute('aria-checked'); // 'false' | 'true' | 'mixed'
+    // jika mixed → anggap klik = pilih semua
+    const wantAll = state !== 'true';
+    setAllSelected(wantAll);
+  };
+  toggle.addEventListener('click', onToggle);
+  toggle.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') onToggle(e);
+  });
 }
 
 function formatRupiah(n) {
