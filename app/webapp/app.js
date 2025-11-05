@@ -524,7 +524,7 @@ async function onPay(){
       const s = await r.json();
       if (s.status === "PAID"){
         clearInterval(t);
-        hideQRModal();
+        hideQRModal(); 
         tg?.close?.();
       }
     }catch{}
