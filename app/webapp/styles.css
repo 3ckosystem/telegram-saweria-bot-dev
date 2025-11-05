@@ -126,3 +126,18 @@
 .select-all-toggle[aria-checked="mixed"]{ background:#3a3a3a; }
 .select-all-label{ font-size:14px; }
 .select-all-count{ margin-left:6px; opacity:.7; font-size:13px; }
+
+/* ==== Hover Zoom Cursor pada Foto ==== */
+.thumb {
+  cursor: zoom-in;
+  transition: transform .25s ease;
+}
+
+.card.selected .thumb {
+  cursor: zoom-out;
+}
+
+/* Optional: kasih sedikit efek zoom visual biar lebih responsif */
+.thumb:hover {
+  transform: scale(1.03);
+}
