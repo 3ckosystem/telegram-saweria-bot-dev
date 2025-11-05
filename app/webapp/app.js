@@ -1,7 +1,7 @@
 // app/webapp/app.js
 const tg = window.Telegram?.WebApp;
-try { tg?.ready?.(); } catch {}
-try { tg?.expand?.(); } catch {}
+try { tg?.ready?.(); } catch { }
+try { tg?.expand?.(); } catch { }
 
 let PRICE_PER_GROUP = 25000;
 let LOADED_GROUPS = [];
@@ -14,7 +14,7 @@ let __qrImageReady = false;                    // true kalau QR.png sudah load
 let __statusPollTimer = null;                  // interval polling status
 
 // ====== Helpers UI ======
-function showEmpty(message){
+function showEmpty(message) {
   const root = document.getElementById('list');
   root.innerHTML = `
     <div style="padding:20px;color:#cfc">
@@ -26,7 +26,7 @@ function showEmpty(message){
 }
 
 // Normalisasi transform ImageKit agar tidak dobel '?'
-function withTransform(url, tr = 'w-600,fo-auto'){
+function withTransform(url, tr = 'w-600,fo-auto') {
   if (!url) return url;
   // kalau sudah ada ?tr=, biarkan saja
   if (/\btr=/.test(url)) return url;
@@ -43,13 +43,13 @@ function truncateText(text, max = MAX_DESC_CHARS) {
     const partial = graphemes.slice(0, max).join('');
     const lastSpace = partial.lastIndexOf(' ');
     const safe = lastSpace > 40 ? partial.slice(0, lastSpace) : partial;
-    return safe.replace(/[.,;:!\s]*$/,'') + '…';
+    return safe.replace(/[.,;:!\s]*$/, '') + '…';
   } catch {
     if (text.length <= max) return text;
     let t = text.slice(0, max);
     const lastSpace = t.lastIndexOf(' ');
     if (lastSpace > 40) t = t.slice(0, lastSpace);
-    return t.replace(/[.,;:!\s]*$/,'') + '…';
+    return t.replace(/[.,;:!\s]*$/, '') + '…';
   }
 }
 
@@ -80,7 +80,7 @@ function getUserId() {
 window.__UID__ = window.__UID__ ?? getUserId();
 
 /* ---------------- Boot (idempotent) ---------------- */
-async function initUI(){
+async function initUI() {
   try {
     const r = await fetch('/api/config', { cache: 'no-store' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -106,7 +106,7 @@ async function initUI(){
 
 // PENTING: jalan meski app.js diload setelah DOMContentLoaded
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initUI, { once:true });
+  document.addEventListener('DOMContentLoaded', initUI, { once: true });
 } else {
   initUI();
 }
@@ -117,11 +117,11 @@ function renderNeonList(groups) {
   root.innerHTML = '';
 
   (groups || []).forEach(g => {
-    const id   = String(g.id);
+    const id = String(g.id);
     const name = String(g.name ?? id);
     const desc = String(g.desc ?? '').trim();
     const longDesc = String(g.long_desc ?? desc).trim();
-    const img  = withTransform(String(g.image ?? '').trim());
+    const img = withTransform(String(g.image ?? '').trim());
 
     const card = document.createElement('article');
     card.className = 'card';
@@ -174,7 +174,7 @@ function renderNeonList(groups) {
 }
 
 /* ---------------- Interaksi ---------------- */
-function toggleSelect(card){
+function toggleSelect(card) {
   card.classList.toggle('selected');
   const btn = card.querySelector('button');
   if (btn) updateButtonState(card, btn);
@@ -182,7 +182,7 @@ function toggleSelect(card){
   updateBadge();
 }
 
-function updateButtonState(card, btn){
+function updateButtonState(card, btn) {
   const selected = card.classList.contains('selected');
   btn.textContent = selected ? 'Batal' : 'Pilih Grup';
   btn.classList.toggle('btn-solid', !selected);
@@ -190,7 +190,7 @@ function updateButtonState(card, btn){
   if (!btn.style.marginLeft) btn.style.marginLeft = 'auto';
 }
 
-function openDetailModal(item){
+function openDetailModal(item) {
   const m = document.getElementById('detail');
   const card = document.querySelector(`.card[data-id="${CSS.escape(item.id)}"]`);
   const selected = card?.classList.contains('selected');
@@ -211,11 +211,11 @@ function openDetailModal(item){
   m.hidden = false;
 
   const sheet = document.getElementById('sheet');
-  const hero  = document.getElementById('hero');
-  const img   = document.getElementById('detail-img');
-  const ttl   = document.getElementById('ttl');
-  const dsc   = document.getElementById('dsc');
-  const btns  = document.getElementById('btns');
+  const hero = document.getElementById('hero');
+  const img = document.getElementById('detail-img');
+  const ttl = document.getElementById('ttl');
+  const dsc = document.getElementById('dsc');
+  const btns = document.getElementById('btns');
 
   const fitHero = () => {
     const vh = window.innerHeight;
@@ -237,44 +237,44 @@ function openDetailModal(item){
 
   if (img) {
     if (img.complete) fitHero();
-    else img.addEventListener('load', fitHero, { once:true });
-    window.addEventListener('resize', fitHero, { passive:true });
+    else img.addEventListener('load', fitHero, { once: true });
+    window.addEventListener('resize', fitHero, { passive: true });
   }
 
   m.querySelector('.close')?.addEventListener('click', () => closeDetailModal());
   m.querySelector('.add')?.addEventListener('click', () => { if (card) toggleSelect(card); closeDetailModal(); });
-  m.addEventListener('click', (e) => { if (e.target === m) closeDetailModal(); }, { once:true });
+  m.addEventListener('click', (e) => { if (e.target === m) closeDetailModal(); }, { once: true });
 }
 
-function closeDetailModal(){
+function closeDetailModal() {
   const m = document.getElementById('detail');
   m.hidden = true;
   m.innerHTML = '';
 }
 
-function escapeHtml(s){
+function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[c]);
 }
 
-function getSelectedIds(){
+function getSelectedIds() {
   return [...document.querySelectorAll('.card.selected')].map(el => el.dataset.id);
 }
 
-function updateBadge(){
+function updateBadge() {
   const n = getSelectedIds().length;
   const b = document.getElementById('cartBadge');
   if (n > 0) { b.hidden = false; b.textContent = String(n); }
   else b.hidden = true;
 }
 
-function formatRupiah(n){
+function formatRupiah(n) {
   if (!Number.isFinite(n)) return "Rp 0";
   return "Rp " + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
-function syncTotalText(){
+function syncTotalText() {
   const t = getSelectedIds().length * PRICE_PER_GROUP;
   const payBtn = document.getElementById('pay');
   document.getElementById('total-text').textContent = formatRupiah(t);
@@ -286,7 +286,7 @@ function syncTotalText(){
 // ===== Countdown untuk "menunggu QR muncul" (fase 1) =====
 let __qrCountdownTimer = null;
 
-function startQrCountdown(maxSeconds = 180) {
+function startQrCountdown(maxSeconds = 180, onExpire) {
   const msgEl = document.getElementById('qrMsg');
   const progEl = document.getElementById('qrProg');
   let left = Math.max(0, maxSeconds);
@@ -302,12 +302,9 @@ function startQrCountdown(maxSeconds = 180) {
     }
     if (left <= 0) {
       stopQrCountdown();
-      if (!__qrImageReady) {
-        showPaymentLoadFailed("Halaman pembayaran gagal dimuat");
-      }
+      try { onExpire?.(); } catch { }
       return;
     }
-
     left -= 1;
   };
 
@@ -315,6 +312,7 @@ function startQrCountdown(maxSeconds = 180) {
   __qrCountdownTimer = setInterval(tick, 1000);
   tick();
 }
+
 function stopQrCountdown() {
   if (__qrCountdownTimer) { clearInterval(__qrCountdownTimer); __qrCountdownTimer = null; }
 }
@@ -365,6 +363,7 @@ function showPaymentExpired() {
 
 async function onPay(){
   const selected = getSelectedIds();
+  const selectedNames = getSelectedGroupNames(selected);   // <— ambil nama2nya
   const amount = selected.length * PRICE_PER_GROUP;
   if (!selected.length) return;
 
@@ -387,99 +386,60 @@ async function onPay(){
   }
 
   const qrPngUrl = `${window.location.origin}/api/qr/${inv.invoice_id}.png?amount=${amount}&t=${Date.now()}`;
-  __qrImageReady = false;
 
-  // === MODAL PEMBAYARAN DENGAN FORMAT INVOICE ===
-const selectedItems = LOADED_GROUPS.filter(g => selected.includes(String(g.id)));
-const listHtml = selectedItems.map((g,i)=>`
-  <tr>
-    <td style="padding:6px 8px;text-align:left;">${i+1}.</td>
-    <td style="padding:6px 8px;text-align:left;">${escapeHtml(g.name || g.id)}</td>
-    <td style="padding:6px 8px;text-align:right;">${formatRupiah(PRICE_PER_GROUP)}</td>
-  </tr>
-`).join("");
-
-const totalHtml = `
-  <tr style="border-top:1px solid #ffffff22">
-    <td colspan="2" style="padding:6px 8px;text-align:left;font-weight:600;">Total</td>
-    <td style="padding:6px 8px;text-align:right;font-weight:600;">${formatRupiah(amount)}</td>
-  </tr>
-`;
-
-showQRModal(`
-  <div style="text-align:center;font-family:sans-serif;">
-    <div style="font-weight:700;font-size:18px;margin-bottom:6px">
-      Pembayaran
+  // — modal awal (judul + daftar pesanan + countdown menunggu QR) —
+  showQRModal(`
+    <div style="text-align:center">
+      <div style="font-weight:900;font-size:20px;margin-bottom:6px">Meminta Instruksi Pembayaran</div>
+      ${renderSelectedBadges(selectedNames)}
+      <div id="qrMsg" style="margin:6px 0 12px; opacity:.85">Mohon tunggu sebentar (maks 3 menit) …</div>
+      <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px">
+        <div id="qrProg" style="height:100%;width:0%;background:#fff3;border-radius:6px"></div>
+      </div>
+      <img id="qrImg" alt="QR" src="${qrPngUrl}" style="max-width:100%;display:block;margin:0 auto;border-radius:10px;border:1px solid #ffffff1a">
+      <button class="close" id="closeModal">Tutup</button>
     </div>
+  `);
+  document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
 
-    <div style="margin:6px 0 8px;opacity:.9;font-size:13px">Pesanan kamu:</div>
-    <table style="
-      width:100%;margin:0 auto 10px auto;border-collapse:collapse;
-      font-size:13px;color:#eee;max-width:320px;">
-      ${listHtml}${totalHtml}
-    </table>
+  // Fase 1: tunggu QR muncul (3 menit) → kalau habis waktu, tampilkan halaman gagal + daftar grup
+  startQrCountdown(180, () => showPaymentLoadFailed(selectedNames));
 
-    <div id="qrMsg" style="margin:8px 0 12px; opacity:.85;font-size:13px;">
-      Mohon tunggu sebentar (maks 3 menit) …
-    </div>
-
-    <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px">
-      <div id="qrProg" style="height:100%;width:0%;background:#fff3;border-radius:6px"></div>
-    </div>
-
-    <img id="qrImg" alt="QR" src="${qrPngUrl}"
-      style="max-width:100%;display:block;margin:0 auto;border-radius:10px;border:1px solid #ffffff1a">
-
-    <button class="close" id="closeModal" style="margin-top:10px;">Tutup</button>
-  </div>
-`);
-document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
-  // Fase 1: tunggu QR tampil (3 menit)
-  startQrCountdown(180);
-
-  // Saat QR selesai diload → masuk fase 2 (5 menit)
+  // Jika QR muncul → ganti ke countdown pembayaran 5 menit
   const qrImg = document.getElementById('qrImg');
   if (qrImg) {
-    const onReady = () => {
-      __qrImageReady = true;
-      stopQrCountdown();
-      startPayCountdown(300); // 5 menit
-    };
-    if (qrImg.complete && qrImg.naturalWidth > 20) onReady();
+    const onReady = () => { stopQrCountdown(); startPayCountdown(300); };
+    const onError = () => { stopQrCountdown(); showPaymentLoadFailed(selectedNames); };
+    if (qrImg.complete && qrImg.naturalWidth > 10) onReady();
     else {
-      qrImg.addEventListener('load', () => {
-        if (qrImg.naturalWidth > 20) onReady();         // valid QR
-        else showPaymentLoadFailed();                   // file ada tapi isinya tak valid
-      }, { once:true });
-      qrImg.addEventListener('error', () => showPaymentLoadFailed(), { once:true });
+      qrImg.addEventListener('load', onReady, { once:true });
+      qrImg.addEventListener('error', onError, { once:true });
     }
   }
 
-  // Polling status invoice
   const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
-  if (__statusPollTimer) { clearInterval(__statusPollTimer); }
-  __statusPollTimer = setInterval(async () => {
-    try {
+  let t = setInterval(async ()=>{
+    try{
       const r = await fetch(statusUrl);
-      if (!r.ok) return;
+      if(!r.ok) return;
       const s = await r.json();
-      if (s.status === "PAID") {
-        clearInterval(__statusPollTimer); __statusPollTimer = null;
+      if (s.status === "PAID"){
+        clearInterval(t);
         hideQRModal();
         tg?.close?.();
       }
-    } catch {}
+    }catch{}
   }, 2000);
-
 }
 
-function showQRModal(html){
+
+function showQRModal(html) {
   const m = document.getElementById('qr');
   m.innerHTML = `<div>${html}</div>`;
   m.hidden = false;
 }
 
-function hideQRModal(){
+function hideQRModal() {
   stopQrCountdown();
   stopPayCountdown();
   if (__statusPollTimer) { clearInterval(__statusPollTimer); __statusPollTimer = null; }
@@ -489,31 +449,50 @@ function hideQRModal(){
 }
 
 
-function showPaymentLoadFailed(reason = "Halaman pembayaran gagal dimuat") {
-  stopQrCountdown();
-  stopPayCountdown();
-  if (__statusPollTimer) { clearInterval(__statusPollTimer); __statusPollTimer = null; }
-
+function showPaymentLoadFailed(selectedNames) {
+  const namesHTML = renderSelectedBadges(selectedNames);
   const box = document.querySelector('#qr > div');
   if (!box) return;
   box.innerHTML = `
-    <div style="text-align:center">
-      <div style="font-weight:800;font-size:18px;margin-bottom:8px">${escapeHtml(reason)}</div>
-      <p style="opacity:.85;margin:0 0 14px;font-size:13px">
-        Silahkan chat admin dan kirimkan <b>screenshot</b> halaman ini untuk proses pembayaran manual.
-      </p>
-      <button id="btnChatAdmin"
-        style="width:100%;height:44px;border:0;border-radius:12px;font-weight:800;background:#2b2b2b;color:#fff;margin-bottom:10px">
+    <div style="font-weight:900;font-size:22px;margin-bottom:6px">Halaman pembayaran gagal dimuat</div>
+    ${namesHTML}
+    <div style="opacity:.85;margin:6px 0 16px">
+      Silahkan chat admin dan kirimkan <b>screenshot</b> halaman ini untuk proses pembayaran manual.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="close" id="btnChatAdmin"
+        style="height:44px;border-radius:12px;border:0;background:#2b2b2b;color:#fff;font-weight:800">
         Chat Admin @${ADMIN_USERNAME}
       </button>
-      <button id="btnBack"
-        style="width:100%;height:44px;border:0;border-radius:12px;font-weight:800;background:#444;color:#fff">
+      <button class="close" id="btnBackOrder"
+        style="height:44px;border-radius:12px;border:0;background:#3a3a3a;color:#fff;font-weight:800">
         Kembali ke Halaman Pemesanan
       </button>
     </div>
   `;
+  document.getElementById('btnBackOrder')?.addEventListener('click', hideQRModal);
   document.getElementById('btnChatAdmin')?.addEventListener('click', () => {
-    try { tg?.openTelegramLink?.(`https://t.me/${ADMIN_USERNAME}`); } catch {}
+    try { tg?.openTelegramLink?.(`https://t.me/${ADMIN_USERNAME}`); } catch { }
   });
-  document.getElementById('btnBack')?.addEventListener('click', hideQRModal);
+}
+
+
+// Ambil array nama grup dari daftar id terpilih
+function getSelectedGroupNames(selectedIds) {
+  const map = new Map(LOADED_GROUPS.map(g => [String(g.id), String(g.name || g.id)]));
+  return (selectedIds || getSelectedIds()).map(id => map.get(String(id))).filter(Boolean);
+}
+
+// Render pill list kecil seperti invoice
+function renderSelectedBadges(names) {
+  if (!names?.length) return "";
+  return `
+    <div style="margin:10px 0 6px;display:flex;flex-direction:column;gap:8px">
+      ${names.map(n => `
+        <div style="display:inline-flex;align-items:center;gap:8px;
+                    padding:8px 12px;border-radius:999px;
+                    background:#1a1a1a;border:1px solid #ffffff1a;
+                    font-weight:700">${escapeHtml(n)}</div>`).join("")}
+    </div>
+  `;
 }
