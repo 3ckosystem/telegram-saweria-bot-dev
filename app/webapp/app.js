@@ -25,6 +25,22 @@ function showEmpty(message) {
   `;
 }
 
+function openAdminChat(e){
+  try { e?.preventDefault?.(); } catch {}
+  const url = `https://t.me/${ADMIN_USERNAME}`;
+
+  // Prioritaskan API Telegram agar tidak menutup Mini App di Desktop
+  if (window.Telegram?.WebApp?.openTelegramLink) {
+    window.Telegram.WebApp.openTelegramLink(url);
+  } else if (window.Telegram?.WebApp?.openLink) {
+    // beberapa klien lama
+    window.Telegram.WebApp.openLink(url, { try_instant_view: false });
+  } else {
+    // fallback browser
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
 // Normalisasi transform ImageKit agar tidak dobel '?'
 function withTransform(url, tr = 'w-600,fo-auto') {
   if (!url) return url;
@@ -549,30 +565,32 @@ function hideQRModal() {
 
 
 function showPaymentLoadFailed(selectedNames) {
-  const namesHTML = renderSelectedBadges(selectedNames);
-  const box = document.querySelector('#qr > div');
-  if (!box) return;
-  box.innerHTML = `
-    <div style="font-weight:900;font-size:22px;margin-bottom:6px">Halaman pembayaran gagal dimuat</div>
-    ${namesHTML}
-    <div style="opacity:.85;margin:6px 0 16px">
-      Silahkan chat admin dan kirimkan <b>screenshot</b> halaman ini untuk proses pembayaran manual.
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <button class="close" id="btnChatAdmin"
-        style="height:44px;border-radius:12px;border:0;background:#2b2b2b;color:#fff;font-weight:800">
+  const m = document.getElementById('qr');
+  const list = (selectedNames || [])
+    .map(n => `<span class="tag">${escapeHtml(n)}</span>`)
+    .join("");
+
+  m.innerHTML = `
+    <div style="text-align:center">
+      <div style="font-weight:900;font-size:22px;margin-bottom:8px">Halaman pembayaran gagal dimuat</div>
+      ${list ? `<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${list}</div>` : ""}
+      <div style="opacity:.9;margin:0 0 14px">
+        Silahkan chat admin dan kirimkan <b>screenshot</b> halaman ini untuk proses pembayaran manual.
+      </div>
+      <button id="btnChatAdmin" type="button" class="close" style="margin-bottom:10px">
         Chat Admin @${ADMIN_USERNAME}
       </button>
-      <button class="close" id="btnBackOrder"
-        style="height:44px;border-radius:12px;border:0;background:#3a3a3a;color:#fff;font-weight:800">
+      <button id="btnBackOrder" type="button" class="close" style="background:#2b2b2b">
         Kembali ke Halaman Pemesanan
       </button>
     </div>
   `;
+  m.hidden = false;
+
+  // ✅ penting: pakai openTelegramLink, bukan <a href=...>
+  document.getElementById('btnChatAdmin')?.addEventListener('click', openAdminChat);
   document.getElementById('btnBackOrder')?.addEventListener('click', hideQRModal);
-  document.getElementById('btnChatAdmin')?.addEventListener('click', () => {
-    try { tg?.openTelegramLink?.(`https://t.me/${ADMIN_USERNAME}`); } catch { }
-  });
+
 }
 
 
