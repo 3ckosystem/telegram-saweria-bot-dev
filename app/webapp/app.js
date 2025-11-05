@@ -25,8 +25,8 @@ function showEmpty(message) {
   `;
 }
 
-function openAdminChat(e){
-  try { e?.preventDefault?.(); } catch {}
+function openAdminChat(e) {
+  try { e?.preventDefault?.(); } catch { }
   const url = `https://t.me/${ADMIN_USERNAME}`;
 
   // Prioritaskan API Telegram agar tidak menutup Mini App di Desktop
@@ -133,11 +133,11 @@ function renderNeonList(groups) {
   root.innerHTML = '';
 
   (groups || []).forEach(g => {
-    const id   = String(g.id);
+    const id = String(g.id);
     const name = String(g.name ?? id);
     const desc = String(g.desc ?? '').trim();
     const longDesc = String(g.long_desc ?? desc).trim();
-    const img  = withTransform(String(g.image ?? '').trim());
+    const img = withTransform(String(g.image ?? '').trim());
 
     const card = document.createElement('article');
     card.className = 'card';
@@ -219,7 +219,7 @@ function renderNeonList(groups) {
 
 
 /* ---------------- Interaksi ---------------- */
-function toggleSelect(card){
+function toggleSelect(card) {
   card.classList.toggle('selected');
   const btn = card.querySelector('button');
   if (btn) updateButtonState(card, btn);
@@ -316,9 +316,9 @@ function updateBadge() {
   else b.hidden = true;
 }
 
-function getCards(){ return [...document.querySelectorAll('.card')]; }
+function getCards() { return [...document.querySelectorAll('.card')]; }
 
-function refreshSelectAllUI(){
+function refreshSelectAllUI() {
   const bar = document.getElementById('selectAllBar');
   if (!bar) return;
   const cards = getCards();
@@ -338,7 +338,7 @@ function refreshSelectAllUI(){
   count.textContent = `(${selected}/${total})`;
 }
 
-function setAllSelected(flag){
+function setAllSelected(flag) {
   const cards = getCards();
   cards.forEach(card => {
     const already = card.classList.contains('selected');
@@ -353,7 +353,7 @@ function setAllSelected(flag){
   refreshSelectAllUI();
 }
 
-function ensureSelectAllUI(){
+function ensureSelectAllUI() {
   if (document.getElementById('selectAllBar')) return;
 
   const headerEl = document.querySelector('.header');
@@ -476,9 +476,9 @@ function showPaymentExpired() {
   document.getElementById('btnBackOrder')?.addEventListener('click', hideQRModal);
 }
 
-async function onPay(){
+async function onPay() {
   const selected = getSelectedIds();
-  const selectedNames = getSelectedGroupNames(selected);   // <— ambil nama2nya
+  const selectedNames = getSelectedGroupNames(selected);
   const amount = selected.length * PRICE_PER_GROUP;
   if (!selected.length) return;
 
@@ -489,63 +489,107 @@ async function onPay(){
   }
 
   let inv;
-  try{
+  try {
     const res = await fetch(`${window.location.origin}/api/invoice`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ user_id:userId, groups:selected, amount })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, groups: selected, amount })
     });
     if (!res.ok) throw new Error(await res.text());
     inv = await res.json();
-  }catch(e){
-    return showQRModal(`<div style="color:#f55">Create invoice gagal:<br><code>${escapeHtml(e.message||String(e))}</code></div>`);
+  } catch (e) {
+    showQRModal(`<div style="color:#f55">Create invoice gagal:<br><code>${escapeHtml(e.message || String(e))}</code></div>`);
+    return;
   }
 
   const qrPngUrl = `${window.location.origin}/api/qr/${inv.invoice_id}.png?amount=${amount}&t=${Date.now()}`;
 
-  // — modal awal (judul + daftar pesanan + countdown menunggu QR) —
+  // — Modal awal: judul + list pesanan + progress (TANPA img.src) —
   showQRModal(`
     <div style="text-align:center">
       <div style="font-weight:900;font-size:20px;margin-bottom:6px">Pembayaran Grup VIP</div>
       ${renderSelectedBadges(selectedNames)}
-      <div id="qrMsg" style="margin:6px 0 12px; opacity:.85">Mohon tunggu sebentar (maks 3 menit) …</div>
+      <div id="qrMsg" style="margin:6px 0 12px; opacity:.85">Mohon tunggu sebentar (maks 3 menit)…</div>
       <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px">
         <div id="qrProg" style="height:100%;width:0%;background:#fff3;border-radius:6px"></div>
       </div>
-      <img id="qrImg" alt="QR" src="${qrPngUrl}" style="max-width:100%;display:block;margin:0 auto;border-radius:10px;border:1px solid #ffffff1a">
+      <img id="qrImg" alt="QR" style="max-width:100%;display:none;margin:0 auto;border-radius:10px;border:1px solid #ffffff1a">
       <button class="close" id="closeModal">Tutup</button>
     </div>
   `);
   document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
 
-  // Fase 1: tunggu QR muncul (3 menit) → kalau habis waktu, tampilkan halaman gagal + daftar grup
+  // Fase 1: tunggu QR muncul (maks 3 menit). Jika habis → gagal.
   startQrCountdown(180, () => showPaymentLoadFailed(selectedNames));
 
-  // Jika QR muncul → ganti ke countdown pembayaran 5 menit
-  const qrImg = document.getElementById('qrImg');
-  if (qrImg) {
-    const onReady = () => { stopQrCountdown(); startPayCountdown(300); };
-    const onError = () => { stopQrCountdown(); showPaymentLoadFailed(selectedNames); };
-    if (qrImg.complete && qrImg.naturalWidth > 10) onReady();
-    else {
-      qrImg.addEventListener('load', onReady, { once:true });
-      qrImg.addEventListener('error', onError, { once:true });
+  // Prefetch + verifikasi isi respons:
+  const ac = new AbortController();
+  const hardTimeout = setTimeout(() => ac.abort(), 180000); // 3 menit
+  let ok = false;
+
+  try {
+    const res = await fetch(qrPngUrl, { cache: 'no-store', signal: ac.signal });
+    const blob = await res.blob();
+    const valid = res.ok && await isImageBlobValid(blob);
+
+    if (valid) {
+      const url = URL.createObjectURL(blob);
+      const img = document.getElementById('qrImg');
+      if (img) {
+        img.onload = () => {
+          // Safeguard: kalau dimensinya kelewat kecil, kemungkinan bukan QR yang benar
+          const tooSmall = (img.naturalWidth < 200 || img.naturalHeight < 200);
+          if (tooSmall) {
+            URL.revokeObjectURL(url);
+            stopQrCountdown();
+            showPaymentLoadFailed(selectedNames);
+            return;
+          }
+          // Sukses: tampilkan & mulai countdown pembayaran
+          img.style.display = 'block';
+          stopQrCountdown();
+          document.getElementById('qrMsg').innerHTML =
+            `Silahkan lakukan pembayaran dengan scan QRIS.<br>Waktu pelunasan pembayaran (05:00)`;
+          startPayCountdown(300);
+
+          // Mulai polling status (dan simpan id timer)
+          if (__statusPollTimer) { clearInterval(__statusPollTimer); __statusPollTimer = null; }
+          const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
+          __statusPollTimer = setInterval(async () => {
+            try {
+              const r = await fetch(statusUrl);
+              if (!r.ok) return;
+              const s = await r.json();
+              if (s.status === "PAID") {
+                clearInterval(__statusPollTimer);
+                __statusPollTimer = null;
+                hideQRModal();
+                tg?.close?.();
+              }
+            } catch {}
+          }, 2000);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          stopQrCountdown();
+          showPaymentLoadFailed(selectedNames);
+        };
+        img.src = url;
+        ok = true;
+      }
     }
+  } catch (err) {
+    // fetch error / aborted → biarkan handled di finally
+  } finally {
+    clearTimeout(hardTimeout);
   }
 
-  const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
-  let t = setInterval(async ()=>{
-    try{
-      const r = await fetch(statusUrl);
-      if(!r.ok) return;
-      const s = await r.json();
-      if (s.status === "PAID"){
-        clearInterval(t);
-        hideQRModal();
-        tg?.close?.();
-      }
-    }catch{}
-  }, 2000);
+  if (!ok) {
+    stopQrCountdown();
+    showPaymentLoadFailed(selectedNames);
+  }
 }
+
 
 
 function showQRModal(html) {
@@ -601,7 +645,7 @@ function getSelectedGroupNames(selectedIds) {
 }
 
 // Render pill list kecil menyamping (chip mini) — tanpa kata VIP & EnSEXlopedia
-function renderSelectedBadges(names){
+function renderSelectedBadges(names) {
   if (!names?.length) return "";
 
   // Hapus kata "VIP" dan "EnSEXlopedia" (case-insensitive)
@@ -633,3 +677,33 @@ function renderSelectedBadges(names){
   `;
 }
 
+// === Helper: cek blob adalah PNG/JPEG (signature) ===
+async function isImageBlobValid(blob) {
+  try {
+    if (!blob) return false;
+    const type = blob.type || "";
+    if (!type.startsWith("image/")) return false;
+
+    // Baca 12 byte pertama untuk tanda tangan
+    const ab = await blob.slice(0, 12).arrayBuffer();
+    const b = new Uint8Array(ab);
+
+    // PNG signature: 89 50 4E 47 0D 0A 1A 0A
+    const isPng = b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
+      b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A;
+
+    // JPEG signature: FF D8
+    const isJpeg = b[0] === 0xFF && b[1] === 0xD8;
+
+    return isPng || isJpeg;
+  } catch { return false; }
+}
+
+// === Helper: bersihkan label grup (tanpa "VIP" & "EnSEXlopedia") ===
+function shortName(name = "") {
+  return String(name)
+    .replace(/\bVIP\b/ig, "")
+    .replace(/\bEnSEXlopedia\b/ig, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
