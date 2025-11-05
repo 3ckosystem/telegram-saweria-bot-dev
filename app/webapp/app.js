@@ -483,22 +483,31 @@ function getSelectedGroupNames(selectedIds) {
   return (selectedIds || getSelectedIds()).map(id => map.get(String(id))).filter(Boolean);
 }
 
-// Render pill list kecil menyamping (chip mini)
+// Render pill list kecil menyamping (chip mini) — tanpa kata VIP & EnSEXlopedia
 function renderSelectedBadges(names){
   if (!names?.length) return "";
+
+  // Hapus kata "VIP" dan "EnSEXlopedia" (case-insensitive)
+  const clean = names.map(n =>
+    String(n)
+      .replace(/\bVIP\b/gi, "")
+      .replace(/\bEnSEXlopedia\b/gi, "")
+      .trim()
+  );
+
   return `
     <div style="
       display:flex; flex-wrap:wrap; gap:6px; justify-content:center;
       margin:6px 0 8px
     ">
-      ${names.map(n => `
+      ${clean.map(n => `
         <span style="
           display:inline-flex; align-items:center;
           padding:6px 8px; border-radius:999px;
           background:#141414; border:1px solid #ffffff22; color:#fff;
           font-size:11px; line-height:1; font-weight:700; letter-spacing:.2px;
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-          max-width:calc(50% - 6px) /* biar tetap menyamping & rapi saat nama panjang */
+          max-width:calc(50% - 6px)
         ">
           ${escapeHtml(n)}
         </span>
