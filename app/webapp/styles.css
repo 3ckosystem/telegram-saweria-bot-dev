@@ -141,9 +141,3 @@
 .thumb:hover {
   transform: scale(1.03);
 }
-
-/* chip kecil untuk daftar grup di error modal */
-#qr .tag{
-  display:inline-block; padding:4px 8px; border-radius:999px;
-  background:#1b1b1b; border:1px solid #ffffff1a; font-size:12px;
-}
