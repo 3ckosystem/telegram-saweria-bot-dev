@@ -1,7 +1,7 @@
 // app/webapp/app.js
 const tg = window.Telegram?.WebApp;
-try { tg?.ready?.(); } catch { }
-try { tg?.expand?.(); } catch { }
+try { tg?.ready?.(); } catch {}
+try { tg?.expand?.(); } catch {}
 
 let PRICE_PER_GROUP = 25000;
 let LOADED_GROUPS = [];
@@ -9,12 +9,11 @@ let LOADED_GROUPS = [];
 // ====== Config truncate ======
 const MAX_DESC_CHARS = 120;
 
-const ADMIN_USERNAME = "ensexlopedia";         // Username admin
-let __qrImageReady = false;                    // true kalau QR.png sudah load
-let __statusPollTimer = null;                  // interval polling status
+const ADMIN_USERNAME = "ensexlopedia"; // Username admin
+let __statusPollTimer = null;          // interval polling status
 
 // ====== Helpers UI ======
-function showEmpty(message) {
+function showEmpty(message){
   const root = document.getElementById('list');
   root.innerHTML = `
     <div style="padding:20px;color:#cfc">
@@ -25,26 +24,21 @@ function showEmpty(message) {
   `;
 }
 
-function openAdminChat(e) {
-  try { e?.preventDefault?.(); } catch { }
+function openAdminChat(e){
+  try { e?.preventDefault?.(); } catch {}
   const url = `https://t.me/${ADMIN_USERNAME}`;
-
-  // Prioritaskan API Telegram agar tidak menutup Mini App di Desktop
   if (window.Telegram?.WebApp?.openTelegramLink) {
     window.Telegram.WebApp.openTelegramLink(url);
   } else if (window.Telegram?.WebApp?.openLink) {
-    // beberapa klien lama
     window.Telegram.WebApp.openLink(url, { try_instant_view: false });
   } else {
-    // fallback browser
     window.open(url, "_blank", "noopener,noreferrer");
   }
 }
 
 // Normalisasi transform ImageKit agar tidak dobel '?'
-function withTransform(url, tr = 'w-600,fo-auto') {
+function withTransform(url, tr = 'w-600,fo-auto'){
   if (!url) return url;
-  // kalau sudah ada ?tr=, biarkan saja
   if (/\btr=/.test(url)) return url;
   return url.includes('?') ? `${url}&tr=${tr}` : `${url}?tr=${tr}`;
 }
@@ -59,13 +53,13 @@ function truncateText(text, max = MAX_DESC_CHARS) {
     const partial = graphemes.slice(0, max).join('');
     const lastSpace = partial.lastIndexOf(' ');
     const safe = lastSpace > 40 ? partial.slice(0, lastSpace) : partial;
-    return safe.replace(/[.,;:!\s]*$/, '') + '…';
+    return safe.replace(/[.,;:!\s]*$/,'') + '…';
   } catch {
     if (text.length <= max) return text;
     let t = text.slice(0, max);
     const lastSpace = t.lastIndexOf(' ');
     if (lastSpace > 40) t = t.slice(0, lastSpace);
-    return t.replace(/[.,;:!\s]*$/, '') + '…';
+    return t.replace(/[.,;:!\s]*$/,'') + '…';
   }
 }
 
@@ -96,7 +90,7 @@ function getUserId() {
 window.__UID__ = window.__UID__ ?? getUserId();
 
 /* ---------------- Boot (idempotent) ---------------- */
-async function initUI() {
+async function initUI(){
   try {
     const r = await fetch('/api/config', { cache: 'no-store' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -120,43 +114,39 @@ async function initUI() {
   document.getElementById('pay')?.addEventListener('click', onPay);
 }
 
-// PENTING: jalan meski app.js diload setelah DOMContentLoaded
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initUI, { once: true });
+  document.addEventListener('DOMContentLoaded', initUI, { once:true });
 } else {
   initUI();
 }
 
 /* ---------------- Render List ---------------- */
-function renderNeonList(groups) {
+function renderNeonList(groups){
   const root = document.getElementById('list');
   root.innerHTML = '';
 
   (groups || []).forEach(g => {
-    const id = String(g.id);
+    const id   = String(g.id);
     const name = String(g.name ?? id);
     const desc = String(g.desc ?? '').trim();
     const longDesc = String(g.long_desc ?? desc).trim();
-    const img = withTransform(String(g.image ?? '').trim());
+    const img  = withTransform(String(g.image ?? '').trim());
 
     const card = document.createElement('article');
     card.className = 'card';
     card.dataset.id = id;
 
-    // === CHECK BADGE (bisa diklik) ===
+    // CHECK BADGE (klik/keyboard)
     const check = document.createElement('div');
     check.className = 'check';
     check.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16"><path fill="#fff" d="M9,16.2 4.8,12 3.4,13.4 9,19 21,7 19.6,5.6"/></svg>`;
-    // interaksi: klik & keyboard
     check.style.cursor = 'pointer';
     check.tabIndex = 0;
     check.setAttribute('role', 'checkbox');
     check.setAttribute('aria-checked', 'false');
     check.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();      // jangan buka modal
+      e.preventDefault(); e.stopPropagation();
       toggleSelect(card);
-      // aria update
       check.setAttribute('aria-checked', String(card.classList.contains('selected')));
     });
     check.addEventListener('keydown', (e) => {
@@ -188,15 +178,12 @@ function renderNeonList(groups) {
     btn.style.marginLeft = 'auto';
     btn.textContent = 'Pilih Grup';
 
-    // tombol: toggle pilih
     btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       toggleSelect(card);
       check.setAttribute('aria-checked', String(card.classList.contains('selected')));
     });
 
-    // klik kartu (kecuali tombol/check) → buka detail
     card.addEventListener('click', (e) => {
       if (btn.contains(e.target) || check.contains(e.target)) return;
       openDetailModal({ id, name, desc: longDesc || desc, image: img });
@@ -206,7 +193,6 @@ function renderNeonList(groups) {
     card.append(check, thumb, meta);
     root.appendChild(card);
 
-    // set state awal
     updateButtonState(card, btn);
     check.setAttribute('aria-checked', String(card.classList.contains('selected')));
   });
@@ -214,22 +200,19 @@ function renderNeonList(groups) {
   updateBadge();
   ensureSelectAllUI();
   refreshSelectAllUI();
-
 }
 
-
 /* ---------------- Interaksi ---------------- */
-function toggleSelect(card) {
+function toggleSelect(card){
   card.classList.toggle('selected');
   const btn = card.querySelector('button');
   if (btn) updateButtonState(card, btn);
   syncTotalText();
   updateBadge();
-  refreshSelectAllUI();   // << tambah baris ini
+  refreshSelectAllUI();
 }
 
-
-function updateButtonState(card, btn) {
+function updateButtonState(card, btn){
   const selected = card.classList.contains('selected');
   btn.textContent = selected ? 'Batal' : 'Pilih Grup';
   btn.classList.toggle('btn-solid', !selected);
@@ -237,7 +220,7 @@ function updateButtonState(card, btn) {
   if (!btn.style.marginLeft) btn.style.marginLeft = 'auto';
 }
 
-function openDetailModal(item) {
+function openDetailModal(item){
   const m = document.getElementById('detail');
   const card = document.querySelector(`.card[data-id="${CSS.escape(item.id)}"]`);
   const selected = card?.classList.contains('selected');
@@ -258,11 +241,11 @@ function openDetailModal(item) {
   m.hidden = false;
 
   const sheet = document.getElementById('sheet');
-  const hero = document.getElementById('hero');
-  const img = document.getElementById('detail-img');
-  const ttl = document.getElementById('ttl');
-  const dsc = document.getElementById('dsc');
-  const btns = document.getElementById('btns');
+  const hero  = document.getElementById('hero');
+  const img   = document.getElementById('detail-img');
+  const ttl   = document.getElementById('ttl');
+  const dsc   = document.getElementById('dsc');
+  const btns  = document.getElementById('btns');
 
   const fitHero = () => {
     const vh = window.innerHeight;
@@ -284,41 +267,41 @@ function openDetailModal(item) {
 
   if (img) {
     if (img.complete) fitHero();
-    else img.addEventListener('load', fitHero, { once: true });
-    window.addEventListener('resize', fitHero, { passive: true });
+    else img.addEventListener('load', fitHero, { once:true });
+    window.addEventListener('resize', fitHero, { passive:true });
   }
 
   m.querySelector('.close')?.addEventListener('click', () => closeDetailModal());
   m.querySelector('.add')?.addEventListener('click', () => { if (card) toggleSelect(card); closeDetailModal(); });
-  m.addEventListener('click', (e) => { if (e.target === m) closeDetailModal(); }, { once: true });
+  m.addEventListener('click', (e) => { if (e.target === m) closeDetailModal(); }, { once:true });
 }
 
-function closeDetailModal() {
+function closeDetailModal(){
   const m = document.getElementById('detail');
   m.hidden = true;
   m.innerHTML = '';
 }
 
-function escapeHtml(s) {
+function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   })[c]);
 }
 
-function getSelectedIds() {
+function getSelectedIds(){
   return [...document.querySelectorAll('.card.selected')].map(el => el.dataset.id);
 }
 
-function updateBadge() {
+function updateBadge(){
   const n = getSelectedIds().length;
   const b = document.getElementById('cartBadge');
   if (n > 0) { b.hidden = false; b.textContent = String(n); }
   else b.hidden = true;
 }
 
-function getCards() { return [...document.querySelectorAll('.card')]; }
+function getCards(){ return [...document.querySelectorAll('.card')]; }
 
-function refreshSelectAllUI() {
+function refreshSelectAllUI(){
   const bar = document.getElementById('selectAllBar');
   if (!bar) return;
   const cards = getCards();
@@ -328,7 +311,6 @@ function refreshSelectAllUI() {
   const btn = document.getElementById('selectAllBtn');
   const count = document.getElementById('selectAllCount');
 
-  // state: none / mixed / all
   let state = 'false';
   if (selected === 0) state = 'false';
   else if (selected === total) state = 'true';
@@ -338,13 +320,12 @@ function refreshSelectAllUI() {
   count.textContent = `(${selected}/${total})`;
 }
 
-function setAllSelected(flag) {
+function setAllSelected(flag){
   const cards = getCards();
   cards.forEach(card => {
     const already = card.classList.contains('selected');
     if (flag && !already) card.classList.add('selected');
     if (!flag && already) card.classList.remove('selected');
-    // perbarui tombol di dalam kartu
     const btn = card.querySelector('button');
     if (btn) updateButtonState(card, btn);
   });
@@ -353,7 +334,7 @@ function setAllSelected(flag) {
   refreshSelectAllUI();
 }
 
-function ensureSelectAllUI() {
+function ensureSelectAllUI(){
   if (document.getElementById('selectAllBar')) return;
 
   const headerEl = document.querySelector('.header');
@@ -373,9 +354,8 @@ function ensureSelectAllUI() {
   const toggle = document.getElementById('selectAllBtn');
   const onToggle = (e) => {
     e.preventDefault();
-    const state = toggle.getAttribute('aria-checked'); // 'false' | 'true' | 'mixed'
-    // jika mixed → anggap klik = pilih semua
-    const wantAll = state !== 'true';
+    const state = toggle.getAttribute('aria-checked');
+    const wantAll = state !== 'true'; // 'mixed' dianggap pilih semua
     setAllSelected(wantAll);
   };
   toggle.addEventListener('click', onToggle);
@@ -384,12 +364,12 @@ function ensureSelectAllUI() {
   });
 }
 
-function formatRupiah(n) {
+function formatRupiah(n){
   if (!Number.isFinite(n)) return "Rp 0";
   return "Rp " + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
-function syncTotalText() {
+function syncTotalText(){
   const t = getSelectedIds().length * PRICE_PER_GROUP;
   const payBtn = document.getElementById('pay');
   document.getElementById('total-text').textContent = formatRupiah(t);
@@ -398,7 +378,7 @@ function syncTotalText() {
   payBtn?.toggleAttribute('disabled', disabled);
 }
 
-// ===== Countdown berbasis deadline (tetap jalan meski app di-background) =====
+/* ===== Countdown berbasis deadline (tetap jalan walau app di-background) ===== */
 let __qrCountdownTimer = null;
 let __qrDeadline = 0;
 
@@ -412,7 +392,7 @@ function fmtMMSS(leftSec){
   return `${mm}:${ss}`;
 }
 
-// --- FASE 1: menunggu QR muncul (maks 3 menit) ---
+// FASE 1: menunggu QR muncul (maks 3 menit)
 function startQrCountdown(maxSeconds = 180, onExpire){
   const msgEl  = document.getElementById('qrMsg');
   const progEl = document.getElementById('qrProg');
@@ -437,13 +417,12 @@ function startQrCountdown(maxSeconds = 180, onExpire){
   __qrCountdownTimer = setInterval(tick, 1000);
   tick();
 }
-
 function stopQrCountdown(){
   if (__qrCountdownTimer){ clearInterval(__qrCountdownTimer); __qrCountdownTimer = null; }
   __qrDeadline = 0;
 }
 
-// --- FASE 2: masa pembayaran (5 menit) ---
+// FASE 2: masa pembayaran (5 menit)
 function startPayCountdown(maxSeconds = 300){
   const msgEl  = document.getElementById('qrMsg');
   const progEl = document.getElementById('qrProg');
@@ -468,19 +447,18 @@ function startPayCountdown(maxSeconds = 300){
   __qrPayTimer = setInterval(tick, 1000);
   tick();
 }
-
 function stopPayCountdown(){
   if (__qrPayTimer){ clearInterval(__qrPayTimer); __qrPayTimer = null; }
   __payDeadline = 0;
 }
 
-// --- Saat kembali ke Mini App, kejar waktu & hidupkan ulang timer jika perlu ---
+// Saat kembali ke Mini App, kejar waktu & hidupkan ulang timer jika perlu
 function handleVisibilityResume(){
   // fase 1
   if (__qrDeadline){
     const left = Math.ceil((__qrDeadline - Date.now())/1000);
     if (left <= 0){
-      stopQrCountdown(); // onExpire sudah dipanggil dari startQrCountdown saat habis
+      stopQrCountdown();
     } else if (!__qrCountdownTimer){
       __qrCountdownTimer = setInterval(() => {
         const el = document.getElementById('qrMsg');
@@ -491,13 +469,11 @@ function handleVisibilityResume(){
       }, 1000);
     }
   }
-
   // fase 2
   if (__payDeadline){
     const left = Math.ceil((__payDeadline - Date.now())/1000);
     if (left <= 0){
-      stopPayCountdown();
-      showPaymentExpired();
+      stopPayCountdown(); showPaymentExpired();
     } else if (!__qrPayTimer){
       __qrPayTimer = setInterval(() => {
         const el = document.getElementById('qrMsg');
@@ -509,14 +485,12 @@ function handleVisibilityResume(){
     }
   }
 }
-
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') handleVisibilityResume();
 });
 window.addEventListener('focus', handleVisibilityResume);
 
-
-function showPaymentExpired() {
+function showPaymentExpired(){
   const box = document.querySelector('#qr > div');
   if (!box) return;
   box.innerHTML = `
@@ -527,7 +501,8 @@ function showPaymentExpired() {
   document.getElementById('btnBackOrder')?.addEventListener('click', hideQRModal);
 }
 
-async function onPay() {
+/* ================== PAY FLOW ================== */
+async function onPay(){
   const selected = getSelectedIds();
   const selectedNames = getSelectedGroupNames(selected);
   const amount = selected.length * PRICE_PER_GROUP;
@@ -542,20 +517,20 @@ async function onPay() {
   let inv;
   try {
     const res = await fetch(`${window.location.origin}/api/invoice`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, groups: selected, amount })
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ user_id:userId, groups:selected, amount })
     });
     if (!res.ok) throw new Error(await res.text());
     inv = await res.json();
   } catch (e) {
-    showQRModal(`<div style="color:#f55">Create invoice gagal:<br><code>${escapeHtml(e.message || String(e))}</code></div>`);
+    showQRModal(`<div style="color:#f55">Create invoice gagal:<br><code>${escapeHtml(e.message||String(e))}</code></div>`);
     return;
   }
 
   const qrPngUrl = `${window.location.origin}/api/qr/${inv.invoice_id}.png?amount=${amount}&t=${Date.now()}`;
 
-  // — Modal awal: judul + list pesanan + progress (TANPA img.src) —
+  // Modal awal: judul + list pesanan + progress (tanpa img.src dulu)
   showQRModal(`
     <div style="text-align:center">
       <div style="font-weight:900;font-size:20px;margin-bottom:6px">Pembayaran Grup VIP</div>
@@ -570,40 +545,37 @@ async function onPay() {
   `);
   document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
 
-  // Fase 1: tunggu QR muncul (maks 3 menit). Jika habis → gagal.
+  // Fase 1 countdown: 3 menit → kalau habis, ke halaman gagal
   startQrCountdown(180, () => showPaymentLoadFailed(selectedNames));
 
-  // Prefetch + verifikasi isi respons:
+  // Prefetch + verifikasi isi respons dengan RETRY (≈15s)
   const ac = new AbortController();
   const hardTimeout = setTimeout(() => ac.abort(), 180000); // 3 menit
   let ok = false;
+  const img = document.getElementById('qrImg');
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   try {
-    const res = await fetch(qrPngUrl, { cache: 'no-store', signal: ac.signal });
-    const blob = await res.blob();
-    const valid = res.ok && await isImageBlobValid(blob);
+    for (let attempt = 1; attempt <= 6; attempt++) {
+      let valid = false, blob = null;
+      try {
+        const res = await fetch(qrPngUrl, { cache:'no-store', signal: ac.signal });
+        blob = await res.blob();
+        valid = res.ok && await isImageBlobValid(blob);
+      } catch (_) {}
 
-    if (valid) {
-      const url = URL.createObjectURL(blob);
-      const img = document.getElementById('qrImg');
-      if (img) {
+      if (valid && img) {
+        const url = URL.createObjectURL(blob);
         img.onload = () => {
-          // Safeguard: kalau dimensinya kelewat kecil, kemungkinan bukan QR yang benar
           const tooSmall = (img.naturalWidth < 200 || img.naturalHeight < 200);
-          if (tooSmall) {
-            URL.revokeObjectURL(url);
-            stopQrCountdown();
-            showPaymentLoadFailed(selectedNames);
-            return;
-          }
-          // Sukses: tampilkan & mulai countdown pembayaran
+          if (tooSmall) { URL.revokeObjectURL(url); return; }
+
           img.style.display = 'block';
           stopQrCountdown();
           document.getElementById('qrMsg').innerHTML =
             `Silahkan lakukan pembayaran dengan scan QRIS.<br>Waktu pelunasan pembayaran (05:00)`;
           startPayCountdown(300);
 
-          // Mulai polling status (dan simpan id timer)
           if (__statusPollTimer) { clearInterval(__statusPollTimer); __statusPollTimer = null; }
           const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
           __statusPollTimer = setInterval(async () => {
@@ -619,18 +591,18 @@ async function onPay() {
               }
             } catch {}
           }, 2000);
+
+          ok = true;
         };
-        img.onerror = () => {
-          URL.revokeObjectURL(url);
-          stopQrCountdown();
-          showPaymentLoadFailed(selectedNames);
-        };
+        img.onerror = () => { URL.revokeObjectURL(url); };
         img.src = url;
-        ok = true;
+
+        await sleep(50);
+        if (ok) break;
       }
+
+      if (attempt < 6) await sleep(2500); // backoff ringan
     }
-  } catch (err) {
-    // fetch error / aborted → biarkan handled di finally
   } finally {
     clearTimeout(hardTimeout);
   }
@@ -641,15 +613,14 @@ async function onPay() {
   }
 }
 
-
-
-function showQRModal(html) {
+/* ---------------- Modal Helpers ---------------- */
+function showQRModal(html){
   const m = document.getElementById('qr');
   m.innerHTML = `<div>${html}</div>`;
   m.hidden = false;
 }
 
-function hideQRModal() {
+function hideQRModal(){
   stopQrCountdown();
   stopPayCountdown();
   if (__statusPollTimer) { clearInterval(__statusPollTimer); __statusPollTimer = null; }
@@ -658,17 +629,21 @@ function hideQRModal() {
   m.innerHTML = '';
 }
 
-
-function showPaymentLoadFailed(selectedNames) {
+function showPaymentLoadFailed(selectedNames){
   const m = document.getElementById('qr');
-  const list = (selectedNames || [])
-    .map(n => `<span class="tag">${escapeHtml(n)}</span>`)
-    .join("");
+  const chips = (selectedNames || [])
+    .map(n => `<span style="
+        display:inline-flex;align-items:center;
+        padding:4px 8px;border-radius:999px;
+        background:#141414;border:1px solid #ffffff22;color:#fff;
+        font-size:10px;line-height:1;font-weight:700;letter-spacing:.2px;
+        white-space:nowrap;max-width:calc(33% - 6px);overflow:hidden;text-overflow:ellipsis;
+      ">${escapeHtml(shortName(n))}</span>`).join("");
 
   m.innerHTML = `
     <div style="text-align:center">
       <div style="font-weight:900;font-size:22px;margin-bottom:8px">Halaman pembayaran gagal dimuat</div>
-      ${list ? `<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${list}</div>` : ""}
+      ${chips ? `<div style="margin:2px 0 12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:center">${chips}</div>` : ""}
       <div style="opacity:.9;margin:0 0 14px">
         Silahkan chat admin dan kirimkan <b>screenshot</b> halaman ini untuk proses pembayaran manual.
       </div>
@@ -681,77 +656,51 @@ function showPaymentLoadFailed(selectedNames) {
     </div>
   `;
   m.hidden = false;
-
-  // ✅ penting: pakai openTelegramLink, bukan <a href=...>
   document.getElementById('btnChatAdmin')?.addEventListener('click', openAdminChat);
   document.getElementById('btnBackOrder')?.addEventListener('click', hideQRModal);
-
 }
 
-
-// Ambil array nama grup dari daftar id terpilih
-function getSelectedGroupNames(selectedIds) {
+/* ---------------- Data Helpers ---------------- */
+function getSelectedGroupNames(selectedIds){
   const map = new Map(LOADED_GROUPS.map(g => [String(g.id), String(g.name || g.id)]));
   return (selectedIds || getSelectedIds()).map(id => map.get(String(id))).filter(Boolean);
 }
 
-// Render pill list kecil menyamping (chip mini) — tanpa kata VIP & EnSEXlopedia
-function renderSelectedBadges(names) {
+// Chip kecil menyamping (tanpa "VIP" & "EnSEXlopedia")
+function renderSelectedBadges(names){
   if (!names?.length) return "";
-
-  // Hapus kata "VIP" dan "EnSEXlopedia" (case-insensitive)
-  const clean = names.map(n =>
-    String(n)
-      .replace(/\bVIP\b/gi, "")
-      .replace(/\bEnSEXlopedia\b/gi, "")
-      .trim()
-  );
-
+  const clean = names.map(n => shortName(n));
   return `
-    <div style="
-      display:flex; flex-wrap:wrap; gap:6px; justify-content:center;
-      margin:6px 0 8px
-    ">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:6px 0 8px">
       ${clean.map(n => `
         <span style="
-          display:inline-flex; align-items:center;
-          padding:6px 8px; border-radius:999px;
-          background:#141414; border:1px solid #ffffff22; color:#fff;
-          font-size:11px; line-height:1; font-weight:700; letter-spacing:.2px;
-          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-          max-width:calc(50% - 6px)
-        ">
-          ${escapeHtml(n)}
-        </span>
+          display:inline-flex;align-items:center;
+          padding:4px 8px;border-radius:999px;
+          background:#141414;border:1px solid #ffffff22;color:#fff;
+          font-size:10px;line-height:1;font-weight:700;letter-spacing:.2px;
+          white-space:nowrap;max-width:calc(33% - 6px);overflow:hidden;text-overflow:ellipsis;
+        ">${escapeHtml(n)}</span>
       `).join("")}
     </div>
   `;
 }
 
-// === Helper: cek blob adalah PNG/JPEG (signature) ===
-async function isImageBlobValid(blob) {
-  try {
+// Validasi blob image (PNG/JPEG)
+async function isImageBlobValid(blob){
+  try{
     if (!blob) return false;
     const type = blob.type || "";
     if (!type.startsWith("image/")) return false;
-
-    // Baca 12 byte pertama untuk tanda tangan
     const ab = await blob.slice(0, 12).arrayBuffer();
-    const b = new Uint8Array(ab);
-
-    // PNG signature: 89 50 4E 47 0D 0A 1A 0A
-    const isPng = b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
-      b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A;
-
-    // JPEG signature: FF D8
-    const isJpeg = b[0] === 0xFF && b[1] === 0xD8;
-
+    const b  = new Uint8Array(ab);
+    const isPng  = b[0]===0x89 && b[1]===0x50 && b[2]===0x4E && b[3]===0x47 && b[4]===0x0D && b[5]===0x0A && b[6]===0x1A && b[7]===0x0A;
+    const isJpeg = b[0]===0xFF && b[1]===0xD8;
     return isPng || isJpeg;
   } catch { return false; }
 }
 
-// === Helper: bersihkan label grup (tanpa "VIP" & "EnSEXlopedia") ===
-function shortName(name = "") {
+// Bersihkan label grup (tanpa "VIP" & "EnSEXlopedia")
+function shortName(name = ""){
   return String(name)
     .replace(/\bVIP\b/ig, "")
     .replace(/\bEnSEXlopedia\b/ig, "")
