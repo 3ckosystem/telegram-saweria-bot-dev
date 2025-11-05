@@ -457,12 +457,12 @@ async def send_invite_link(app: Application, user_id: int, target_group_id):
     group_id_str  = str(target_group_id)
     group_name    = GROUP_NAME_BY_ID.get(group_id_str, group_id_str)
 
-    expire_ts = int(time.time()) + 15 * 60
+    # expire_ts = int(time.time()) + 15 * 60
     link_obj = await _create_link_with_retry(
         app.bot,
         chat_id=group_id_norm,
         member_limit=1,
-        expire_date=expire_ts,
+        # expire_date=expire_ts,
         creates_join_request=False,
         name="Paid join",
     )
@@ -490,7 +490,16 @@ async def send_invite_link(app: Application, user_id: int, target_group_id):
     try:
         await app.bot.send_message(
             chat_id=user_id,
-            text=f"✅ Pembayaran diterima.\nUndangan untuk {group_name}:\n{invite_link_url}"
+            text = (
+                f"✅ Pembayaran berhasil.\n\n"
+                f"Undangan untuk {group_name} bersifat *sekali pakai* (1x join).\n"
+                f"Silakan bergabung melalui tautan di bawah ini dan tetap berada di grup.\n\n"
+                f"Catatan:\n"
+                f"• Jika kamu keluar dari grup, akses akan hilang.\n"
+                f"• Untuk masuk kembali, kamu perlu melakukan pembayaran ulang agar mendapat tautan baru.\n\n"
+                f"{invite_link_url}"
+            )
+
         )
     except Exception as e:
         print("[invite] send DM failed:", e)
