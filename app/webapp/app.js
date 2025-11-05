@@ -28,7 +28,6 @@ function showEmpty(message) {
 // Normalisasi transform ImageKit agar tidak dobel '?'
 function withTransform(url, tr = 'w-600,fo-auto') {
   if (!url) return url;
-  // kalau sudah ada ?tr=, biarkan saja
   if (/\btr=/.test(url)) return url;
   return url.includes('?') ? `${url}&tr=${tr}` : `${url}?tr=${tr}`;
 }
@@ -131,16 +130,14 @@ function renderNeonList(groups) {
     const check = document.createElement('div');
     check.className = 'check';
     check.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16"><path fill="#fff" d="M9,16.2 4.8,12 3.4,13.4 9,19 21,7 19.6,5.6"/></svg>`;
-    // interaksi: klik & keyboard
     check.style.cursor = 'pointer';
     check.tabIndex = 0;
     check.setAttribute('role', 'checkbox');
     check.setAttribute('aria-checked', 'false');
     check.addEventListener('click', (e) => {
       e.preventDefault();
-      e.stopPropagation();      // jangan buka modal
+      e.stopPropagation();
       toggleSelect(card);
-      // aria update
       check.setAttribute('aria-checked', String(card.classList.contains('selected')));
     });
     check.addEventListener('keydown', (e) => {
@@ -172,7 +169,6 @@ function renderNeonList(groups) {
     btn.style.marginLeft = 'auto';
     btn.textContent = 'Pilih Grup';
 
-    // tombol: toggle pilih
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -180,7 +176,6 @@ function renderNeonList(groups) {
       check.setAttribute('aria-checked', String(card.classList.contains('selected')));
     });
 
-    // klik kartu (kecuali tombol/check) → buka detail
     card.addEventListener('click', (e) => {
       if (btn.contains(e.target) || check.contains(e.target)) return;
       openDetailModal({ id, name, desc: longDesc || desc, image: img });
@@ -190,7 +185,6 @@ function renderNeonList(groups) {
     card.append(check, thumb, meta);
     root.appendChild(card);
 
-    // set state awal
     updateButtonState(card, btn);
     check.setAttribute('aria-checked', String(card.classList.contains('selected')));
   });
@@ -198,7 +192,6 @@ function renderNeonList(groups) {
   updateBadge();
   ensureSelectAllUI();
   refreshSelectAllUI();
-
 }
 
 
@@ -209,9 +202,8 @@ function toggleSelect(card){
   if (btn) updateButtonState(card, btn);
   syncTotalText();
   updateBadge();
-  refreshSelectAllUI();   // << tambah baris ini
+  refreshSelectAllUI();
 }
-
 
 function updateButtonState(card, btn) {
   const selected = card.classList.contains('selected');
@@ -312,7 +304,6 @@ function refreshSelectAllUI(){
   const btn = document.getElementById('selectAllBtn');
   const count = document.getElementById('selectAllCount');
 
-  // state: none / mixed / all
   let state = 'false';
   if (selected === 0) state = 'false';
   else if (selected === total) state = 'true';
@@ -328,7 +319,6 @@ function setAllSelected(flag){
     const already = card.classList.contains('selected');
     if (flag && !already) card.classList.add('selected');
     if (!flag && already) card.classList.remove('selected');
-    // perbarui tombol di dalam kartu
     const btn = card.querySelector('button');
     if (btn) updateButtonState(card, btn);
   });
@@ -357,8 +347,7 @@ function ensureSelectAllUI(){
   const toggle = document.getElementById('selectAllBtn');
   const onToggle = (e) => {
     e.preventDefault();
-    const state = toggle.getAttribute('aria-checked'); // 'false' | 'true' | 'mixed'
-    // jika mixed → anggap klik = pilih semua
+    const state = toggle.getAttribute('aria-checked');
     const wantAll = state !== 'true';
     setAllSelected(wantAll);
   };
@@ -419,7 +408,8 @@ function stopQrCountdown() {
 // ===== Countdown untuk "masa bayar" (fase 2) =====
 let __qrPayTimer = null;
 
-function startPayCountdown(maxSeconds = 300) { // 5 menit
+// >>> UBAH: 15 menit (900 detik)
+function startPayCountdown(maxSeconds = 900) {
   const msgEl = document.getElementById('qrMsg');
   const progEl = document.getElementById('qrProg');
   let left = Math.max(0, maxSeconds);
@@ -460,9 +450,27 @@ function showPaymentExpired() {
   document.getElementById('btnBackOrder')?.addEventListener('click', hideQRModal);
 }
 
+/* ---------- STRICT QR ONLY helpers ---------- */
+async function ensureQrIsReady(invoiceId, amount) {
+  // preflight QR: hanya lanjut jika dapat image/png
+  const url = `/api/qr/${encodeURIComponent(invoiceId)}.png?amount=${amount}&t=${Date.now()}`;
+  const res = await fetch(url, { method: 'GET' });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  if (blob.type !== 'image/png') return null;
+  return URL.createObjectURL(blob);
+}
+
+function redirectPaymentFailed(reason = "failed") {
+  try { closeDetailModal?.(); } catch {}
+  try { hideQRModal?.(); } catch {}
+  window.location.href = `/failed.html?reason=${encodeURIComponent(reason)}`;
+}
+
+/* -------------- PAY FLOW -------------- */
 async function onPay(){
   const selected = getSelectedIds();
-  const selectedNames = getSelectedGroupNames(selected);   // <— ambil nama2nya
+  const selectedNames = getSelectedGroupNames(selected);
   const amount = selected.length * PRICE_PER_GROUP;
   if (!selected.length) return;
 
@@ -484,37 +492,31 @@ async function onPay(){
     return showQRModal(`<div style="color:#f55">Create invoice gagal:<br><code>${escapeHtml(e.message||String(e))}</code></div>`);
   }
 
-  const qrPngUrl = `${window.location.origin}/api/qr/${inv.invoice_id}.png?amount=${amount}&t=${Date.now()}`;
+  // STRICT: cek QR siap & benar-benar PNG; kalau tidak → redirect gagal
+  const qrObjectUrl = await ensureQrIsReady(inv.invoice_id, amount);
+  if (!qrObjectUrl) return redirectPaymentFailed("no_qr");
 
-  // — modal awal (judul + daftar pesanan + countdown menunggu QR) —
+  // — modal (judul + badge + countdown masa bayar 15 menit) —
   showQRModal(`
     <div style="text-align:center">
       <div style="font-weight:900;font-size:20px;margin-bottom:6px">Pembayaran Grup VIP</div>
       ${renderSelectedBadges(selectedNames)}
-      <div id="qrMsg" style="margin:6px 0 12px; opacity:.85">Mohon tunggu sebentar (maks 3 menit) …</div>
+      <div id="qrMsg" style="margin:6px 0 12px; opacity:.85">Silahkan lakukan pembayaran dengan scan QRIS.</div>
       <div style="height:6px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px">
         <div id="qrProg" style="height:100%;width:0%;background:#fff3;border-radius:6px"></div>
       </div>
-      <img id="qrImg" alt="QR" src="${qrPngUrl}" style="max-width:100%;display:block;margin:0 auto;border-radius:10px;border:1px solid #ffffff1a">
+      <img id="qrImg" alt="QR" src="" style="max-width:100%;display:block;margin:0 auto;border-radius:10px;border:1px solid #ffffff1a">
       <button class="close" id="closeModal">Tutup</button>
     </div>
   `);
   document.getElementById('closeModal')?.addEventListener('click', hideQRModal);
 
-  // Fase 1: tunggu QR muncul (3 menit) → kalau habis waktu, tampilkan halaman gagal + daftar grup
-  startQrCountdown(180, () => showPaymentLoadFailed(selectedNames));
-
-  // Jika QR muncul → ganti ke countdown pembayaran 5 menit
+  // Set src setelah modal siap
   const qrImg = document.getElementById('qrImg');
-  if (qrImg) {
-    const onReady = () => { stopQrCountdown(); startPayCountdown(300); };
-    const onError = () => { stopQrCountdown(); showPaymentLoadFailed(selectedNames); };
-    if (qrImg.complete && qrImg.naturalWidth > 10) onReady();
-    else {
-      qrImg.addEventListener('load', onReady, { once:true });
-      qrImg.addEventListener('error', onError, { once:true });
-    }
-  }
+  if (!qrImg) return redirectPaymentFailed("no_img_slot");
+  qrImg.onload = () => { startPayCountdown(900); }; // 15 menit
+  qrImg.onerror = () => redirectPaymentFailed("img_error");
+  qrImg.src = qrObjectUrl;
 
   const statusUrl = `${window.location.origin}/api/invoice/${inv.invoice_id}/status`;
   let t = setInterval(async ()=>{
@@ -547,7 +549,6 @@ function hideQRModal() {
   m.innerHTML = '';
 }
 
-
 function showPaymentLoadFailed(selectedNames) {
   const namesHTML = renderSelectedBadges(selectedNames);
   const box = document.querySelector('#qr > div');
@@ -575,7 +576,6 @@ function showPaymentLoadFailed(selectedNames) {
   });
 }
 
-
 // Ambil array nama grup dari daftar id terpilih
 function getSelectedGroupNames(selectedIds) {
   const map = new Map(LOADED_GROUPS.map(g => [String(g.id), String(g.name || g.id)]));
@@ -585,8 +585,6 @@ function getSelectedGroupNames(selectedIds) {
 // Render pill list kecil menyamping (chip mini) — tanpa kata VIP & EnSEXlopedia
 function renderSelectedBadges(names){
   if (!names?.length) return "";
-
-  // Hapus kata "VIP" dan "EnSEXlopedia" (case-insensitive)
   const clean = names.map(n =>
     String(n)
       .replace(/\bVIP\b/gi, "")
@@ -614,4 +612,3 @@ function renderSelectedBadges(names){
     </div>
   `;
 }
-
