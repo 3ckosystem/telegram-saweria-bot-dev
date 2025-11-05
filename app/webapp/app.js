@@ -615,3 +615,37 @@ function renderSelectedBadges(names){
   `;
 }
 
+async function ensureQrIsReady(invoiceId, amount) {
+  // preflight dulu pakai fetch supaya dapat status 404 (img.onerror kadang telat)
+  const url = `/api/qr/${encodeURIComponent(invoiceId)}.png?amount=${amount}&t=${Date.now()}`;
+  const res = await fetch(url, { method: 'GET' });
+  if (!res.ok) return null;                 // 404 -> null
+  const blob = await res.blob();
+  if (blob.type !== 'image/png') return null; // jaga-jaga content-type
+  return URL.createObjectURL(blob);           // berikan object URL ke <img>
+}
+
+async function startPaymentFlow(invoiceId, amount) {
+  try {
+    const qrObjectUrl = await ensureQrIsReady(invoiceId, amount);
+    if (!qrObjectUrl) {
+      return redirectPaymentFailed("no_qr");
+    }
+    // render modal & sisipkan <img> QR
+    openPaymentModal();            // fungsi existing kamu
+    const img = document.getElementById('qr-image'); // pastikan ada <img id="qr-image">
+    if (!img) return redirectPaymentFailed("no_img_slot");
+    img.onload = () => { /* optionally: indikator loaded */ };
+    img.onerror = () => redirectPaymentFailed("img_error");
+    img.src = qrObjectUrl;
+  } catch (e) {
+    console.error("QR flow error:", e);
+    redirectPaymentFailed("exception");
+  }
+}
+
+function redirectPaymentFailed(reason = "failed") {
+  try { closePaymentModal?.(); } catch {}
+  // arahkan ke halaman gagal (sesuaikan path kamu)
+  window.location.href = `/failed.html?reason=${encodeURIComponent(reason)}`;
+}

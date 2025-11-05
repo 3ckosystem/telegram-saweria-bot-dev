@@ -761,3 +761,14 @@ async def on_start():
 async def on_stop():
     await bot_app.stop()
     await bot_app.shutdown()
+
+@app.get("/api/qr/{invoice_id}.png")
+async def get_qr_png(invoice_id: str, amount: int = Query(..., ge=1000)):
+    """
+    Hanya mengembalikan PNG QR asli.
+    Jika tidak tersedia (masih form/screenshot), kembalikan 404.
+    """
+    png = await fetch_gopay_qr_hd_png(invoice_id, amount)
+    if not png:
+        raise HTTPException(status_code=404, detail="QR not available")
+    return Response(content=png, media_type="image/png")
