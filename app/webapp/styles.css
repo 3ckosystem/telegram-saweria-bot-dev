@@ -110,3 +110,6 @@
 
 /* tombol di kartu tetap klik-able */
 .btn-outline, .cta { cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+
+.check { cursor: pointer; }
+.card.selected .check { opacity: 1; } /* kalau kamu pakai efek opacity */

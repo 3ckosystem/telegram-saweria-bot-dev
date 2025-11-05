@@ -117,19 +117,39 @@ function renderNeonList(groups) {
   root.innerHTML = '';
 
   (groups || []).forEach(g => {
-    const id = String(g.id);
+    const id   = String(g.id);
     const name = String(g.name ?? id);
     const desc = String(g.desc ?? '').trim();
     const longDesc = String(g.long_desc ?? desc).trim();
-    const img = withTransform(String(g.image ?? '').trim());
+    const img  = withTransform(String(g.image ?? '').trim());
 
     const card = document.createElement('article');
     card.className = 'card';
     card.dataset.id = id;
 
+    // === CHECK BADGE (bisa diklik) ===
     const check = document.createElement('div');
     check.className = 'check';
     check.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16"><path fill="#fff" d="M9,16.2 4.8,12 3.4,13.4 9,19 21,7 19.6,5.6"/></svg>`;
+    // interaksi: klik & keyboard
+    check.style.cursor = 'pointer';
+    check.tabIndex = 0;
+    check.setAttribute('role', 'checkbox');
+    check.setAttribute('aria-checked', 'false');
+    check.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();      // jangan buka modal
+      toggleSelect(card);
+      // aria update
+      check.setAttribute('aria-checked', String(card.classList.contains('selected')));
+    });
+    check.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleSelect(card);
+        check.setAttribute('aria-checked', String(card.classList.contains('selected')));
+      }
+    });
 
     const thumb = document.createElement('div');
     thumb.className = 'thumb';
@@ -152,14 +172,17 @@ function renderNeonList(groups) {
     btn.style.marginLeft = 'auto';
     btn.textContent = 'Pilih Grup';
 
+    // tombol: toggle pilih
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       toggleSelect(card);
+      check.setAttribute('aria-checked', String(card.classList.contains('selected')));
     });
 
+    // klik kartu (kecuali tombol/check) → buka detail
     card.addEventListener('click', (e) => {
-      if (btn.contains(e.target)) return;
+      if (btn.contains(e.target) || check.contains(e.target)) return;
       openDetailModal({ id, name, desc: longDesc || desc, image: img });
     });
 
@@ -167,11 +190,14 @@ function renderNeonList(groups) {
     card.append(check, thumb, meta);
     root.appendChild(card);
 
+    // set state awal
     updateButtonState(card, btn);
+    check.setAttribute('aria-checked', String(card.classList.contains('selected')));
   });
 
   updateBadge();
 }
+
 
 /* ---------------- Interaksi ---------------- */
 function toggleSelect(card) {
