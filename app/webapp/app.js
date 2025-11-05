@@ -398,29 +398,39 @@ function syncTotalText() {
   payBtn?.toggleAttribute('disabled', disabled);
 }
 
-// ===== Countdown untuk "menunggu QR muncul" (fase 1) =====
+// ===== Countdown berbasis deadline (tetap jalan meski app di-background) =====
 let __qrCountdownTimer = null;
+let __qrDeadline = 0;
 
-function startQrCountdown(maxSeconds = 180, onExpire) {
-  const msgEl = document.getElementById('qrMsg');
+let __qrPayTimer = null;
+let __payDeadline = 0;
+
+function fmtMMSS(leftSec){
+  const s  = Math.max(0, leftSec|0);
+  const mm = String(Math.floor(s/60)).padStart(2,'0');
+  const ss = String(s%60).padStart(2,'0');
+  return `${mm}:${ss}`;
+}
+
+// --- FASE 1: menunggu QR muncul (maks 3 menit) ---
+function startQrCountdown(maxSeconds = 180, onExpire){
+  const msgEl  = document.getElementById('qrMsg');
   const progEl = document.getElementById('qrProg');
-  let left = Math.max(0, maxSeconds);
+  __qrDeadline = Date.now() + maxSeconds*1000;
 
   const tick = () => {
     if (!msgEl) return stopQrCountdown();
-    const mm = String(Math.floor(left / 60)).padStart(2, '0');
-    const ss = String(left % 60).padStart(2, '0');
-    msgEl.textContent = `Mohon tunggu sebentar (${mm}:${ss})`;
-    if (progEl) {
-      const pct = ((maxSeconds - left) / maxSeconds) * 100;
-      progEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
-    }
-    if (left <= 0) {
+    const left = Math.ceil((__qrDeadline - Date.now())/1000);
+    if (left <= 0){
       stopQrCountdown();
-      try { onExpire?.(); } catch { }
+      try{ onExpire?.(); }catch{}
       return;
     }
-    left -= 1;
+    msgEl.textContent = `Mohon tunggu sebentar (${fmtMMSS(left)})`;
+    if (progEl){
+      const spent = maxSeconds - left;
+      progEl.style.width = `${Math.min(100, Math.max(0, (spent/maxSeconds)*100))}%`;
+    }
   };
 
   stopQrCountdown();
@@ -428,42 +438,83 @@ function startQrCountdown(maxSeconds = 180, onExpire) {
   tick();
 }
 
-function stopQrCountdown() {
-  if (__qrCountdownTimer) { clearInterval(__qrCountdownTimer); __qrCountdownTimer = null; }
+function stopQrCountdown(){
+  if (__qrCountdownTimer){ clearInterval(__qrCountdownTimer); __qrCountdownTimer = null; }
+  __qrDeadline = 0;
 }
 
-// ===== Countdown untuk "masa bayar" (fase 2) =====
-let __qrPayTimer = null;
-
-function startPayCountdown(maxSeconds = 300) { // 5 menit
-  const msgEl = document.getElementById('qrMsg');
+// --- FASE 2: masa pembayaran (5 menit) ---
+function startPayCountdown(maxSeconds = 300){
+  const msgEl  = document.getElementById('qrMsg');
   const progEl = document.getElementById('qrProg');
-  let left = Math.max(0, maxSeconds);
+  __payDeadline = Date.now() + maxSeconds*1000;
 
   const tick = () => {
     if (!msgEl) return stopPayCountdown();
-    const mm = String(Math.floor(left / 60)).padStart(2, '0');
-    const ss = String(left % 60).padStart(2, '0');
-    msgEl.innerHTML = `Silahkan lakukan pembayaran dengan scan QRIS.<br>Waktu pelunasan pembayaran (${mm}:${ss})`;
-    if (progEl) {
-      const pct = ((maxSeconds - left) / maxSeconds) * 100;
-      progEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
-    }
-    if (left <= 0) {
+    const left = Math.ceil((__payDeadline - Date.now())/1000);
+    if (left <= 0){
       stopPayCountdown();
       showPaymentExpired();
       return;
     }
-    left -= 1;
+    msgEl.innerHTML = `Silahkan lakukan pembayaran dengan scan QRIS.<br>Waktu pelunasan pembayaran (${fmtMMSS(left)})`;
+    if (progEl){
+      const spent = maxSeconds - left;
+      progEl.style.width = `${Math.min(100, Math.max(0, (spent/maxSeconds)*100))}%`;
+    }
   };
 
   stopPayCountdown();
   __qrPayTimer = setInterval(tick, 1000);
   tick();
 }
-function stopPayCountdown() {
-  if (__qrPayTimer) { clearInterval(__qrPayTimer); __qrPayTimer = null; }
+
+function stopPayCountdown(){
+  if (__qrPayTimer){ clearInterval(__qrPayTimer); __qrPayTimer = null; }
+  __payDeadline = 0;
 }
+
+// --- Saat kembali ke Mini App, kejar waktu & hidupkan ulang timer jika perlu ---
+function handleVisibilityResume(){
+  // fase 1
+  if (__qrDeadline){
+    const left = Math.ceil((__qrDeadline - Date.now())/1000);
+    if (left <= 0){
+      stopQrCountdown(); // onExpire sudah dipanggil dari startQrCountdown saat habis
+    } else if (!__qrCountdownTimer){
+      __qrCountdownTimer = setInterval(() => {
+        const el = document.getElementById('qrMsg');
+        if (!el) return stopQrCountdown();
+        const l = Math.ceil((__qrDeadline - Date.now())/1000);
+        if (l <= 0){ stopQrCountdown(); return; }
+        el.textContent = `Mohon tunggu sebentar (${fmtMMSS(l)})`;
+      }, 1000);
+    }
+  }
+
+  // fase 2
+  if (__payDeadline){
+    const left = Math.ceil((__payDeadline - Date.now())/1000);
+    if (left <= 0){
+      stopPayCountdown();
+      showPaymentExpired();
+    } else if (!__qrPayTimer){
+      __qrPayTimer = setInterval(() => {
+        const el = document.getElementById('qrMsg');
+        if (!el) return stopPayCountdown();
+        const l = Math.ceil((__payDeadline - Date.now())/1000);
+        if (l <= 0){ stopPayCountdown(); showPaymentExpired(); return; }
+        el.innerHTML = `Silahkan lakukan pembayaran dengan scan QRIS.<br>Waktu pelunasan pembayaran (${fmtMMSS(l)})`;
+      }, 1000);
+    }
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') handleVisibilityResume();
+});
+window.addEventListener('focus', handleVisibilityResume);
+
 
 function showPaymentExpired() {
   const box = document.querySelector('#qr > div');
