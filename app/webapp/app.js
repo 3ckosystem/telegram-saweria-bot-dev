@@ -419,7 +419,7 @@ function stopQrCountdown() {
 // ===== Countdown untuk "masa bayar" (fase 2) =====
 let __qrPayTimer = null;
 
-function startPayCountdown(maxSeconds = 300) { // 5 menit
+function startPayCountdown(maxSeconds = 900) { // 15 menit
   const msgEl = document.getElementById('qrMsg');
   const progEl = document.getElementById('qrProg');
   let left = Math.max(0, maxSeconds);
@@ -507,7 +507,7 @@ async function onPay(){
   // Jika QR muncul → ganti ke countdown pembayaran 5 menit
   const qrImg = document.getElementById('qrImg');
   if (qrImg) {
-    const onReady = () => { stopQrCountdown(); startPayCountdown(300); };
+    const onReady = () => { stopQrCountdown(); startPayCountdown(900); };
     const onError = () => { stopQrCountdown(); showPaymentLoadFailed(selectedNames); };
     if (qrImg.complete && qrImg.naturalWidth > 10) onReady();
     else {
