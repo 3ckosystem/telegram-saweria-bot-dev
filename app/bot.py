@@ -341,7 +341,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=chat_id,
                 photo=img,
                 caption=(
-                    "👋 *Selamat datang di EnSEXlopedia VIP!*\n\n"
+                    "👋 *Selamat datang di VIP Katalog EnSEXlopedia!*\n\n"
                     "Silahkan buka *Mini App* lewat tombol **Join VIP** di menu bawah.\n"
                     "Jika tidak muncul, ketik /refresh."
                 ),
