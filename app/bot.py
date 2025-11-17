@@ -332,8 +332,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
 
     # --- KUNCI PERBAIKAN CACHE MENU ---
-    # Reset override menu per-chat agar mengikuti GLOBAL default
     await _reset_menu_to_default_for_chat(context.bot, chat_id)
+
+    # --- KIRIM BANNER START ---
+    try:
+        with open("app/webapp/img/start-banner.jpg", "rb") as img:
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=img,
+                caption=(
+                    "👋 *Selamat datang di EnSEXlopedia VIP!*\n\n"
+                    "Silahkan buka *Mini App* lewat tombol **Join VIP** di menu bawah.\n"
+                    "Jika tidak muncul, ketik /refresh."
+                ),
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        print("Gagal mengirim banner /start:", e)
 
     cfg = _load_gate_env()
 
@@ -342,36 +357,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _send_webapp_button(chat_id, uid, context)
         return
 
-    ok_count, _, total_required, any_cannot_check, mem_groups, mem_channels = await _count_memberships(context, uid, cfg)
-    passed = _is_pass(ok_count, total_required, cfg)
-
-    if passed and not any_cannot_check:
-        await _send_webapp_hint(chat_id, uid, context)
-        return
-
-
-    # Belum lolos gate → sembunyikan keyboard "Buka Katalog" lama
-    await context.bot.send_message(chat_id=chat_id, text="EnSEXlopedia Mini Apps BOT", reply_markup=ReplyKeyboardRemove())
-
-    # Kirim instruksi + tombol Join/Subscribe + Re-check (inline) — hanya yang belum join
-    group_titles, channel_titles = await _resolve_titles(context, cfg)
-
-    lines = []
-    if cfg["mode"] == "ALL":
-        lines.append(f"Hi Kak, sebelum join ke VIP Kk diwajibkan join/subscribe **semua** ({total_required}) grup/channel berikut.")
-    else:
-        min_need = max(1, cfg["min_count"])
-        if total_required and min_need > total_required: min_need = total_required
-        lines.append(f"Hi Kak, sebelum join ke VIP Kk diwajibkan join/subscribe **minimal {min_need}** dari {total_required} grup/channel berikut.")
-    lines.append(f"\nStatus terdeteksi: {ok_count}/{total_required} sudah join.")
-    tips = _need_access_tips(cfg, any_cannot_check)
-    text = "\n".join(lines) + (tips or "") + "\n\nSetelah join/subscribe, klik tombol Re-check di bawah."
-
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text=text,
-        reply_markup=_gate_keyboard_filtered(cfg, mem_groups, mem_channels, group_titles, channel_titles)
-    )
 
 async def on_recheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
