@@ -341,9 +341,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=chat_id,
                 photo=img,
                 caption=(
-                    "👋 *Selamat datang di VIP Katalog EnSEXlopedia!*\n\n"
-                    "Silahkan buka *Mini App* lewat tombol **Join VIP** di menu bawah.\n"
-                    "Jika tidak muncul, ketik /refresh."
+                    "👋 *Welcome to the VIP Zone!*\n\n"
+                    "💠 Tekan **Join VIP** di menu bawah untuk membuka Mini App.\n"
+                    "📂 Jelajahi katalog premium eksklusif.\n"
+                    "⚡ Jika tombol belum tampil, cukup ketik /refresh."
                 ),
                 parse_mode="Markdown"
             )
