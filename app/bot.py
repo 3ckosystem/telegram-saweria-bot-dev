@@ -481,7 +481,8 @@ async def send_invite_link(app: Application, user_id: int, target_group_id):
                 f"Undangan untuk {group_name} bersifat *sekali pakai* (1x join).\n"
                 f"Silakan bergabung melalui tautan di bawah ini dan tetap berada di grup.\n\n"
                 f"Catatan:\n"
-                f"• Jika kamu keluar dari grup, akses akan hilang.\n"
+                f"• Jika kamu terkena limit join dari telegram harap tunggu 15-30 menit laku coba klik link join kembali.\n"
+                f"• DILARANG KELUAR dari Grup. Jika kamu keluar dari grup, akses akan hilang.\n"
                 f"• Untuk masuk kembali, kamu perlu melakukan pembayaran ulang agar mendapat tautan baru.\n\n"
                 f"{invite_link_url}"
             )
