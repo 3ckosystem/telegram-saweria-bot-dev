@@ -79,12 +79,6 @@ function getUserId() {
 // Debug global
 window.__UID__ = window.__UID__ ?? getUserId();
 
-// ===== DEBUG MODE BROWSER =====
-if (!window.__UID__) {
-  console.log("DEBUG MODE: Browser access without Telegram");
-  window.__UID__ = 999999; // UID dummy
-}
-
 /* ---------------- Boot (idempotent) ---------------- */
 async function initUI() {
   try {
