@@ -33,7 +33,7 @@ function withTransform(url, tr = 'w-600,fo-auto') {
   return url.includes('?') ? `${url}&tr=${tr}` : `${url}?tr=${tr}`;
 }
 
-// Truncate aman emoji + potong di batas kata
+// Truncate aman emoji + potong di batas kata.
 function truncateText(text, max = MAX_DESC_CHARS) {
   if (!text) return "";
   try {
